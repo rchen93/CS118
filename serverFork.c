@@ -12,6 +12,8 @@
 #include <sys/wait.h>	/* for the waitpid() system call */
 #include <signal.h>	/* signal name macros, and the kill() prototype */
 
+#include <string>
+#include <iostream>
 
 void sigchld_handler(int s)
 {
@@ -92,12 +94,21 @@ int main(int argc, char *argv[])
 void dostuff (int sock)
 {
    int n;
-   char buffer[256];
-      
-   bzero(buffer,256);
-   n = read(sock,buffer,255);
-   if (n < 0) error("ERROR reading from socket");
-   printf("Here is the message: %s\n",buffer);
-   n = write(sock,"I got your message",18);
+   char buffer[256];  
+   std::string full_message;
+
+   while (1) {
+      n = read(sock, buffer, 255);
+      if (n < 0) error("ERROR reading from socket");
+      std::string temp = std::string(buffer);
+      full_message += temp;
+      std::cout << temp << std::endl;
+      if (full_message.find("\r\n\r\n") != std::string::npos)
+        break;
+      bzero(buffer, 256);
+   }
+
+   std::cout << "Here is the message: " << full_message << std::endl;
+   n = write(sock,"I got your message\n",18);
    if (n < 0) error("ERROR writing to socket");
 }
