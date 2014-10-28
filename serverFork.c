@@ -13,18 +13,51 @@
 #include <signal.h>	/* signal name macros, and the kill() prototype */
 
 #include <string>
+#include <assert.h>
 #include <iostream>
+
+/* FUNCTION PROTOTYPES */
+void dostuff(int);
+std::string parseMessage (const std::string&);
+std::string getFileType (const std::string&); 
 
 void sigchld_handler(int s)
 {
     while(waitpid(-1, NULL, WNOHANG) > 0);
 }
 
-void dostuff(int); /* function prototype */
 void error(char *msg)
 {
     perror(msg);
     exit(1);
+}
+
+/* TESTING */
+
+// TODO: Fill out test
+void shouldParseMessage() {
+
+}
+
+// TODO: Fill out rest of extensions
+void shouldGetFileType() {
+  // HTML
+  std::string fp1 = "hello.html";
+  std::string ext1 = getFileType("hello.html");
+  assert("html" == ext1);
+
+  // JPEG
+
+  // JPG
+
+  // GIF
+
+  // Invalid
+}
+
+void testSuite() {
+  shouldParseMessage();
+  shouldGetFileType();
 }
 
 int main(int argc, char *argv[])
@@ -77,6 +110,7 @@ int main(int argc, char *argv[])
          
          if (pid == 0)  { // fork() returns a value of 0 to the child process
              close(sockfd);
+             testSuite();        // uncomment for tests
              dostuff(newsockfd);
              exit(0);
          }
@@ -84,6 +118,41 @@ int main(int argc, char *argv[])
              close(newsockfd); // parent doesn't need this 
      } /* end of while */
      return 0; /* we never get here */
+}
+
+/********HELPER FUNCTIONS***************/
+
+/*
+  This function takes in the full message as the input and parses the 
+  GET header and returns the file being requested as a string.
+*/
+std::string parseMessage (const std::string& message) {
+  // std::cout << "Inside parseMessage" << std::endl;
+  // std::cout << message << std::endl;
+  int start = message.find("GET /") + 5;
+  // std::cout << "Start" << start << std::endl;
+  int end = message.find("HTTP/");
+  // std::cout << "End" << end << std::endl;
+  return message.substr(start, end-start-1);
+}
+
+/*
+  This function takes in a string containing the filepath and returns
+  the file type. If it is not HTML, JPEG, JPG, or GIF, then it will
+  return an empty string.
+*/
+std::string getFileType (const std::string& filepath) {
+  // std::cout << filepath << std::endl;
+
+  if (filepath.find(".html") != std::string::npos) 
+    return "html";
+  else if (filepath.find(".jpg") != std::string::npos ||
+           filepath.find(".jpeg") != std::string::npos) 
+    return "jpeg";
+  else if (filepath.find(".gif") != std::string::npos)
+    return "gif";
+
+  return "";
 }
 
 /******** DOSTUFF() *********************
@@ -95,20 +164,26 @@ void dostuff (int sock)
 {
    int n;
    char buffer[256];  
-   std::string full_message;
+   std::string message;
 
+   // Reads 255 bytes of the entire input at a time
    while (1) {
       n = read(sock, buffer, 255);
       if (n < 0) error("ERROR reading from socket");
       std::string temp = std::string(buffer);
-      full_message += temp;
-      std::cout << temp << std::endl;
-      if (full_message.find("\r\n\r\n") != std::string::npos)
+      message += temp;
+      // std::cout << temp << std::endl;
+
+      // When the two-carriage return is detected, stop reading
+      if (message.find("\r\n\r\n") != std::string::npos)
         break;
       bzero(buffer, 256);
    }
 
-   std::cout << "Here is the message: " << full_message << std::endl;
+   std::cout << "Here is the message: " << message << std::endl;
+   std::string file = parseMessage(message);
+   std::string fileType = getFileType(file);
+
    n = write(sock,"I got your message\n",18);
    if (n < 0) error("ERROR writing to socket");
 }
