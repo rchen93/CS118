@@ -15,11 +15,13 @@
 #include <string>
 #include <assert.h>
 #include <iostream>
+#include <fstream>
 
 /* FUNCTION PROTOTYPES */
 void dostuff(int);
 std::string parseMessage (const std::string&);
 std::string getFileType (const std::string&); 
+int writeHTML(const std::string&, int); 
 
 void sigchld_handler(int s)
 {
@@ -155,6 +157,28 @@ std::string getFileType (const std::string& filepath) {
   return "";
 }
 
+int writeHTML(const std::string& filepath, int sock) {
+  std::string response, line; 
+
+  // std::cout << "File: " << filepath << std::endl;
+
+  std::ifstream request(filepath.c_str());
+
+  // std::cout << request << std::endl;
+
+  if (request.is_open()) {
+    while(std::getline(request, line)) {
+      response += line;
+      std::cout << "Line: " << line << std::endl;
+    }
+
+  request.close();  
+  }
+
+  // std::cout << "Response: " << response << std::endl;
+  return write(sock, response.c_str(), response.length()); 
+}
+
 /******** DOSTUFF() *********************
  There is a separate instance of this function 
  for each connection.  It handles all communication
@@ -165,6 +189,7 @@ void dostuff (int sock)
    int n;
    char buffer[256];  
    std::string message;
+   std::string response;
 
    // Reads 255 bytes of the entire input at a time
    while (1) {
@@ -184,6 +209,13 @@ void dostuff (int sock)
    std::string file = parseMessage(message);
    std::string fileType = getFileType(file);
 
-   n = write(sock,"I got your message\n",18);
+   if (fileType == "html") {
+      n = writeHTML(file, sock);
+   }
+
+   else {
+       n = write(sock,response.c_str(), response.length());
+   }
+
    if (n < 0) error("ERROR writing to socket");
 }
