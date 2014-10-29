@@ -16,12 +16,18 @@
 #include <assert.h>
 #include <iostream>
 #include <fstream>
+#include <ctime>
 
 /* FUNCTION PROTOTYPES */
 void dostuff(int);
 std::string parseMessage (const std::string&);
 std::string getFileType (const std::string&); 
+int getContentLength(const std::string&);
+std::string getContentType (const std::string&);
+std::string getCurrentTime();
+std::string getLastModified(const std::string&);
 int writeHTML(const std::string&, int); 
+
 
 void sigchld_handler(int s)
 {
@@ -36,30 +42,65 @@ void error(char *msg)
 
 /* TESTING */
 
-// TODO: Fill out test
+// TODO
 void shouldParseMessage() {
 
 }
 
-// TODO: Fill out rest of extensions
 void shouldGetFileType() {
   // HTML
   std::string fp1 = "hello.html";
-  std::string ext1 = getFileType("hello.html");
+  std::string ext1 = getFileType(fp1);
   assert("html" == ext1);
 
   // JPEG
+  std::string fp2 = "hello.jpeg";
+  std::string ext2 = getFileType(fp2);
+  assert("jpeg" == ext2);
 
   // JPG
+  std::string fp3 = "hello.jpg";
+  std::string ext3 = getFileType(fp3);
+  assert("jpg" == ext3);
 
   // GIF
+  std::string fp4 = "hello.gif";
+  std::string ext4 = getFileType(fp4);
+  assert("gif" == ext4);
 
   // Invalid
+  std::string fp5 = "hello.doc";
+  std::string ext5 = getFileType(fp5);
+  assert("" == ext5);
+}
+
+// TODO 
+void shouldGetContentLength() {
+
+}
+
+// TODO 
+void shouldGetContentType() {
+
+}
+
+// TODO
+void shouldGetCurrentTime() {
+
+}
+
+// TODO
+void shouldGetLastModified() {
+
 }
 
 void testSuite() {
   shouldParseMessage();
   shouldGetFileType();
+  shouldGetContentLength();
+  shouldGetContentType();
+  shouldGetCurrentTime();
+  shouldGetLastModified();
 }
 
 int main(int argc, char *argv[])
@@ -157,6 +198,28 @@ std::string getFileType (const std::string& filepath) {
   return "";
 }
 
+/*
+  This function takes in a string containing the filepath and returns
+  the filesize of the file.
+*/
+int getContentLength (const std::string& filepath) {
+  std::ifstream request(filepath.c_str(), std::ifstream::binary | std::ifstream::ate);
+
+  return request.tellg();  
+}
+
+std::string getContentType (const std::string& filetype) {
+
+}
+
+std::string getCurrentTime() {
+
+}
+
+std::string getLastModified(const std::string&) {
+
+}
+
 int writeHTML(const std::string& filepath, int sock) {
   std::string response, line; 
 
@@ -169,7 +232,7 @@ int writeHTML(const std::string& filepath, int sock) {
   if (request.is_open()) {
     while(std::getline(request, line)) {
       response += line;
-      std::cout << "Line: " << line << std::endl;
+      // std::cout << "Line: " << line << std::endl;
     }
 
   request.close();  
@@ -209,12 +272,16 @@ void dostuff (int sock)
    std::string file = parseMessage(message);
    std::string fileType = getFileType(file);
 
+   int length = getContentLength(file);
+   std::cout << "Length: " << length << std::endl;
+
    if (fileType == "html") {
       n = writeHTML(file, sock);
    }
-
    else {
-       n = write(sock,response.c_str(), response.length());
+      // GET header file type not supported
+      std::cout << "Not supported" << std::endl;
+      n = write(sock, "HTTP/1.1 404 Not Found", 22);
    }
 
    if (n < 0) error("ERROR writing to socket");
