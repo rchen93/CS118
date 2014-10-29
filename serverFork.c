@@ -17,6 +17,8 @@
 #include <iostream>
 #include <fstream>
 #include <ctime>
+#include <sys/stat.h>
+#include <time.h>
 
 /* FUNCTION PROTOTYPES */
 void dostuff(int);
@@ -61,7 +63,7 @@ void shouldGetFileType() {
   // JPG
   std::string fp3 = "hello.jpg";
   std::string ext3 = getFileType(fp3);
-  assert("jpg" == ext3);
+  assert("jpeg" == ext3);
 
   // GIF
   std::string fp4 = "hello.gif";
@@ -85,11 +87,6 @@ void shouldGetContentType() {
 }
 
 // TODO
-void shouldGetCurrentTime() {
-
-}
-
-// TODO
 void shouldGetLastModified() {
 
 }
@@ -99,7 +96,6 @@ void testSuite() {
   shouldGetFileType();
   shouldGetContentLength();
   shouldGetContentType();
-  shouldGetCurrentTime();
   shouldGetLastModified();
 }
 
@@ -208,16 +204,40 @@ int getContentLength (const std::string& filepath) {
   return request.tellg();  
 }
 
+/*
+  This function takes in a string containing the file type and returns
+  the MIME type as a string.
+*/
 std::string getContentType (const std::string& filetype) {
 
 }
 
+/*
+  This function returns the current time as a string, which is used
+  for the Date: header field.
+*/
 std::string getCurrentTime() {
+  time_t raw_current_time = time(0);
 
+  return ctime(&raw_current_time);
 }
 
-std::string getLastModified(const std::string&) {
+/*
+  This function takes in the string containing the file and returns
+  the last modified time as a string.
+*/
+std::string getLastModified(const std::string& file) {
+  struct stat attributes;         // File attribute structure
 
+  int return_val = stat(file.c_str(), &attributes);        // Get attributes of file
+  if (return_val != 0) {
+    std::cout << "Error determining last modified!" << std::endl;
+    return "";
+  }
+
+  time_t raw_modified_time = attributes.st_mtime;   // Get modified time from the attributes
+
+  return ctime(&raw_modified_time);
 }
 
 int writeHTML(const std::string& filepath, int sock) {
@@ -251,8 +271,7 @@ void dostuff (int sock)
 {
    int n;
    char buffer[256];  
-   std::string message;
-   std::string response;
+   std::string message, response;
 
    // Reads 255 bytes of the entire input at a time
    while (1) {
@@ -262,9 +281,9 @@ void dostuff (int sock)
       message += temp;
       // std::cout << temp << std::endl;
 
-      // When the two-carriage return is detected, stop reading
-      if (message.find("\r\n\r\n") != std::string::npos)
+      if (n != 256) {
         break;
+      }
       bzero(buffer, 256);
    }
 
@@ -272,14 +291,22 @@ void dostuff (int sock)
    std::string file = parseMessage(message);
    std::string fileType = getFileType(file);
 
+   /* Testing things */
    int length = getContentLength(file);
    std::cout << "Length: " << length << std::endl;
+
+   std::string curr_time = getCurrentTime();
+   std::cout << "Current Time: " << curr_time << std::endl;
+
+   std::string modified_time = getLastModified(file);
+   std::cout << "Last Modified Time: " << modified_time << std::endl;
+   /******************/
 
    if (fileType == "html") {
       n = writeHTML(file, sock);
    }
    else {
-      // GET header file type not supported
+      // File type not supported
       std::cout << "Not supported" << std::endl;
       n = write(sock, "HTTP/1.1 404 Not Found", 22);
    }
