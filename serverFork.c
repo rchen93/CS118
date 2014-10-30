@@ -280,6 +280,27 @@ int writeHTML(const std::string& filepath, int sock) {
   return write(sock, response.c_str(), response.length()); 
 }
 
+int writePic (const std::string& filepath, int sock) {
+  std::string response, line; 
+
+  // std::cout << "File: " << filepath << std::endl;
+
+  std::ifstream request(filepath.c_str(), std::ifstream::binary);
+
+  // std::cout << request << std::endl;
+
+  if (request.is_open()) {
+    while (!request.eof()) {
+      response += request.get();
+    }
+
+  request.close();  
+  }
+
+  // std::cout << "Response: " << response << std::endl;
+  return write(sock, response.c_str(), response.length()); 
+}
+
 /******** DOSTUFF() *********************
  There is a separate instance of this function 
  for each connection.  It handles all communication
@@ -329,6 +350,11 @@ void dostuff (int sock)
    if (fileType == "html") {
       n = writeHTML(file, sock);
    }
+
+   else if (fileType == "jpeg" || fileType == "gif") {
+    n = writePic(file, sock);
+   }
+
    else {
       // File type not supported
       std::cout << "Not supported" << std::endl;
