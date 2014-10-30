@@ -166,8 +166,8 @@ int main(int argc, char *argv[])
   GET header and returns the file being requested as a string.
 */
 std::string parseMessage (const std::string& message) {
-  // std::cout << "Inside parseMessage" << std::endl;
-  // std::cout << message << std::endl;
+  //std::cout << "Inside parseMessage" << std::endl;
+  //std::cout << message << std::endl;
   int start = message.find("GET /") + 5;
   // std::cout << "Start" << start << std::endl;
   int end = message.find("HTTP/");
@@ -205,11 +205,29 @@ int getContentLength (const std::string& filepath) {
 }
 
 /*
-  This function takes in a string containing the file type and returns
+  This function takes in a string containing the file and returns
   the MIME type as a string.
 */
-std::string getContentType (const std::string& filetype) {
+std::string getContentType (const std::string& file) {
+  FILE * stream; 
+  std::string content, temp_content;  
+  const int max_size = 256; 
+  char buffer[max_size];
 
+  std::string cmd = "file -b --mime " + file + " 2>&1"; 
+  stream = popen(cmd.c_str(), "r");
+  if (stream) {
+    while (!feof(stream)) {
+      if (fgets(buffer, max_size, stream) != NULL)
+        temp_content.append(buffer);
+    }
+        pclose(stream);
+  }
+  int s = temp_content.find(";");
+  content = temp_content.substr(0, s);
+
+  //std::cout << "Print Content: " << content << std::endl; 
+  return content; 
 }
 
 /*
@@ -258,7 +276,7 @@ int writeHTML(const std::string& filepath, int sock) {
   request.close();  
   }
 
-  // std::cout << "Response: " << response << std::endl;
+  std::cout << "Response: " << response << std::endl;
   return write(sock, response.c_str(), response.length()); 
 }
 
@@ -293,6 +311,12 @@ void dostuff (int sock)
 
    /* Testing things */
    int length = getContentLength(file);
+
+   std::cout << "Print file: " << file << std::endl;
+
+   std::string content = getContentType(file);
+   std::cout << "Content Type: " << content << std::endl; 
+
    std::cout << "Length: " << length << std::endl;
 
    std::string curr_time = getCurrentTime();
