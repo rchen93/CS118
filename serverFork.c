@@ -15,6 +15,7 @@
 #include <string>
 #include <assert.h>
 #include <iostream>
+#include <sstream> 
 #include <fstream>
 #include <ctime>
 #include <sys/stat.h>
@@ -28,8 +29,8 @@ int getContentLength(const std::string&);
 std::string getContentType (const std::string&);
 std::string getCurrentTime();
 std::string getLastModified(const std::string&);
-int writeHTML(const std::string&, int); 
-
+std::string writeHTML(const std::string&, int); 
+std::string writePic(const std::string&, int); 
 
 void sigchld_handler(int s)
 {
@@ -210,7 +211,7 @@ int getContentLength (const std::string& filepath) {
 */
 std::string getContentType (const std::string& file) {
   FILE * stream; 
-  std::string content, temp_content;  
+  std::string temp_content, content;  
   const int max_size = 256; 
   char buffer[max_size];
 
@@ -223,10 +224,8 @@ std::string getContentType (const std::string& file) {
     }
         pclose(stream);
   }
-  int s = temp_content.find(";");
-  content = temp_content.substr(0, s);
-
-  //std::cout << "Print Content: " << content << std::endl; 
+  
+  content = temp_content.substr(0, temp_content.length() - 1);
   return content; 
 }
 
@@ -236,8 +235,9 @@ std::string getContentType (const std::string& file) {
 */
 std::string getCurrentTime() {
   time_t raw_current_time = time(0);
-
-  return ctime(&raw_current_time);
+  std::string temp(ctime(&raw_current_time));
+  std::string curr_time = temp.substr(0, temp.length() - 1);
+  return curr_time;
 }
 
 /*
@@ -254,11 +254,49 @@ std::string getLastModified(const std::string& file) {
   }
 
   time_t raw_modified_time = attributes.st_mtime;   // Get modified time from the attributes
-
-  return ctime(&raw_modified_time);
+  std::string temp(ctime(&raw_modified_time)); 
+  std::string lmtime = temp.substr(0, temp.length() - 1); 
+  return lmtime;
 }
 
-int writeHTML(const std::string& filepath, int sock) {
+int writeResponse (const std::string& filepath, int sock) {
+  std::string response, contentLength, lastModified; 
+  std::stringstream sstm; 
+  std::string responseError = "HTTP/1.1 404 Not Found\r\n\r\n";
+
+  lastModified = getLastModified(filepath);
+  if (lastModified == "") {
+    std::cout << "I'm here" << std::endl;
+    return write(sock, responseError.c_str(), responseError.length());
+  }
+
+  response += "HTTP/1.1 200 OK\r\nConnection: close\r\n";
+  response = response + "Date: " + getCurrentTime() + "\r\n"; 
+  response = response + + "Last-Modified: " + lastModified + "\r\n";
+  sstm << getContentLength(filepath); 
+  contentLength = sstm.str(); 
+  response = response + "Content-Length: " + contentLength + "\r\n";
+  response = response + "Content-Type: " + getContentType(filepath) + "\r\n\r\n"; 
+  std::string fileType = getFileType(filepath);
+
+  if (fileType == "html") {
+    response += writeHTML(filepath, sock); 
+    return write(sock, response.c_str(), response.length()); 
+  }
+
+  else if (fileType == "jpeg" || "gif") {
+    response += writePic(filepath, sock);
+    return write(sock, response.c_str(), response.length()); 
+  }
+
+  else {
+    // File type not supported
+    std::cout << "Not supported" << std::endl;
+    return write(sock, responseError.c_str(), responseError.length());
+  }
+}
+
+std::string writeHTML(const std::string& filepath, int sock) {
   std::string response, line; 
 
   // std::cout << "File: " << filepath << std::endl;
@@ -275,12 +313,10 @@ int writeHTML(const std::string& filepath, int sock) {
 
   request.close();  
   }
-
-  std::cout << "Response: " << response << std::endl;
-  return write(sock, response.c_str(), response.length()); 
+  return response; 
 }
 
-int writePic (const std::string& filepath, int sock) {
+std::string writePic (const std::string& filepath, int sock) {
   std::string response, line; 
 
   // std::cout << "File: " << filepath << std::endl;
@@ -296,9 +332,7 @@ int writePic (const std::string& filepath, int sock) {
 
   request.close();  
   }
-
-  // std::cout << "Response: " << response << std::endl;
-  return write(sock, response.c_str(), response.length()); 
+  return response; 
 }
 
 /******** DOSTUFF() *********************
@@ -308,9 +342,10 @@ int writePic (const std::string& filepath, int sock) {
  *****************************************/
 void dostuff (int sock)
 {
-   int n;
+   int n, end;
    char buffer[256];  
    std::string message, response;
+   std::string end_string = "\r\n\r\n";
 
    // Reads 255 bytes of the entire input at a time
    while (1) {
@@ -318,19 +353,23 @@ void dostuff (int sock)
       if (n < 0) error("ERROR reading from socket");
       std::string temp = std::string(buffer);
       message += temp;
-      // std::cout << temp << std::endl;
+      //std::cout << temp << std::endl;
 
-      if (n != 256) {
+      end = message.find(end_string);
+      if (end != std::string::npos) {
+        message.erase(end, end_string.size());
         break;
       }
       bzero(buffer, 256);
    }
 
    std::cout << "Here is the message: " << message << std::endl;
+
    std::string file = parseMessage(message);
    std::string fileType = getFileType(file);
 
    /* Testing things */
+   /*
    int length = getContentLength(file);
 
    std::cout << "Print file: " << file << std::endl;
@@ -345,21 +384,9 @@ void dostuff (int sock)
 
    std::string modified_time = getLastModified(file);
    std::cout << "Last Modified Time: " << modified_time << std::endl;
+   */
    /******************/
 
-   if (fileType == "html") {
-      n = writeHTML(file, sock);
-   }
-
-   else if (fileType == "jpeg" || fileType == "gif") {
-    n = writePic(file, sock);
-   }
-
-   else {
-      // File type not supported
-      std::cout << "Not supported" << std::endl;
-      n = write(sock, "HTTP/1.1 404 Not Found", 22);
-   }
-
+   n = writeResponse(file, sock); 
    if (n < 0) error("ERROR writing to socket");
 }
