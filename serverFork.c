@@ -43,12 +43,7 @@ void error(char *msg)
     exit(1);
 }
 
-/* TESTING */
-
-// TODO
-void shouldParseMessage() {
-
-}
+/********************** TESTING ************************************/
 
 void shouldGetFileType() {
   // HTML
@@ -72,32 +67,33 @@ void shouldGetFileType() {
   assert("gif" == ext4);
 
   // Invalid
-  std::string fp5 = "hello.doc";
+  std::string fp5 = "fail.fail";
   std::string ext5 = getFileType(fp5);
   assert("" == ext5);
 }
 
-// TODO 
 void shouldGetContentLength() {
+  // File exists
+  std::string fp1 = "hello.html";
+  int length1 = getContentLength(fp1);
+  assert(42 == length1);
 
+  // File does not exist
+  std::string fp2 = "fail.txt";
+  int length2 = getContentLength(fp2);
+  assert(-1 == length2);
 }
 
-// TODO 
 void shouldGetContentType() {
-
-}
-
-// TODO
-void shouldGetLastModified() {
-
+  std::string fp1 = "hello.html";
+  std::string mime_type1 = getContentType(fp1);
+  assert("text/html; charset=us-ascii" == mime_type1);
 }
 
 void testSuite() {
-  shouldParseMessage();
   shouldGetFileType();
   shouldGetContentLength();
   shouldGetContentType();
-  shouldGetLastModified();
 }
 
 int main(int argc, char *argv[])
@@ -150,7 +146,7 @@ int main(int argc, char *argv[])
          
          if (pid == 0)  { // fork() returns a value of 0 to the child process
              close(sockfd);
-             testSuite();        // uncomment for tests
+             // testSuite();        // uncomment for tests
              dostuff(newsockfd);
              exit(0);
          }
@@ -160,19 +156,15 @@ int main(int argc, char *argv[])
      return 0; /* we never get here */
 }
 
-/********HELPER FUNCTIONS***************/
+/***********************HELPER FUNCTIONS****************************/
 
 /*
   This function takes in the full message as the input and parses the 
   GET header and returns the file being requested as a string.
 */
 std::string parseMessage (const std::string& message) {
-  //std::cout << "Inside parseMessage" << std::endl;
-  //std::cout << message << std::endl;
   int start = message.find("GET /") + 5;
-  // std::cout << "Start" << start << std::endl;
   int end = message.find("HTTP/");
-  // std::cout << "End" << end << std::endl;
   return message.substr(start, end-start-1);
 }
 
@@ -182,8 +174,6 @@ std::string parseMessage (const std::string& message) {
   return an empty string.
 */
 std::string getFileType (const std::string& filepath) {
-  // std::cout << filepath << std::endl;
-
   if (filepath.find(".html") != std::string::npos) 
     return "html";
   else if (filepath.find(".jpg") != std::string::npos ||
@@ -197,12 +187,16 @@ std::string getFileType (const std::string& filepath) {
 
 /*
   This function takes in a string containing the filepath and returns
-  the filesize of the file.
+  the filesize of the file. If the file does not exist, it returns -1.
 */
 int getContentLength (const std::string& filepath) {
   std::ifstream request(filepath.c_str(), std::ifstream::binary | std::ifstream::ate);
 
-  return request.tellg();  
+  if (!request.is_open()) {
+    return -1;
+  } else {
+     return request.tellg();  
+  }
 }
 
 /*
@@ -211,7 +205,7 @@ int getContentLength (const std::string& filepath) {
 */
 std::string getContentType (const std::string& file) {
   FILE * stream; 
-  std::string temp_content, content;  
+  std::string temp_content, content;
   const int max_size = 256; 
   char buffer[max_size];
 
@@ -223,9 +217,9 @@ std::string getContentType (const std::string& file) {
         temp_content.append(buffer);
     }
         pclose(stream);
+        content = temp_content.substr(0, temp_content.length() - 1);    // Get rid of \n
   }
   
-  content = temp_content.substr(0, temp_content.length() - 1);
   return content; 
 }
 
@@ -236,7 +230,7 @@ std::string getContentType (const std::string& file) {
 std::string getCurrentTime() {
   time_t raw_current_time = time(0);
   std::string temp(ctime(&raw_current_time));
-  std::string curr_time = temp.substr(0, temp.length() - 1);
+  std::string curr_time = temp.substr(0, temp.length() - 1);  // Get rid of \n
   return curr_time;
 }
 
@@ -255,20 +249,26 @@ std::string getLastModified(const std::string& file) {
 
   time_t raw_modified_time = attributes.st_mtime;   // Get modified time from the attributes
   std::string temp(ctime(&raw_modified_time)); 
-  std::string lmtime = temp.substr(0, temp.length() - 1); 
+  std::string lmtime = temp.substr(0, temp.length() - 1);     // Get rid of \n
   return lmtime;
 }
 
+/*
+  This function takes in a string containing the file and the socket
+  number and writes to the socket.
+*/
 int writeResponse (const std::string& filepath, int sock) {
   std::string response, contentLength, lastModified; 
   std::stringstream sstm; 
   std::string responseError = "HTTP/1.1 404 Not Found\r\n\r\n";
 
+  // Check if file can be opened
   lastModified = getLastModified(filepath);
   if (lastModified == "") {
     return write(sock, responseError.c_str(), responseError.length());
   }
 
+  // Build the response
   response += "HTTP/1.1 200 OK\r\nConnection: close\r\n";
   response = response + "Date: " + getCurrentTime() + "\r\n"; 
   response = response + + "Last-Modified: " + lastModified + "\r\n";
@@ -286,11 +286,16 @@ int writeResponse (const std::string& filepath, int sock) {
 
   else {
     // File type not supported
-    std::cout << "Not supported" << std::endl;
+    // std::cout << "Not supported" << std::endl;
     return write(sock, responseError.c_str(), responseError.length());
   }
 }
 
+/*
+  This function takes in a string containing the file and returns a
+  string containing the data in the file. If the file does not exist,
+  return empty string.
+*/
 std::string getFileData(const std::string& filepath) { 
   std::ostringstream response;
   std::ifstream request(filepath.c_str(), std::ifstream::in | std::ifstream::binary);
@@ -298,9 +303,11 @@ std::string getFileData(const std::string& filepath) {
   if (request) {
       response << request.rdbuf();
       request.close();  
+      return response.str(); 
+  } else {
+    return "";
   }
 
-  return response.str(); 
 }
 
 /******** DOSTUFF() *********************
@@ -333,26 +340,6 @@ void dostuff (int sock)
    std::cout << "Here is the message: " << message << std::endl;
 
    std::string file = parseMessage(message);
-   std::string fileType = getFileType(file);
-
-   /* Testing things */
-   /*
-   int length = getContentLength(file);
-
-   std::cout << "Print file: " << file << std::endl;
-
-   std::string content = getContentType(file);
-   std::cout << "Content Type: " << content << std::endl; 
-
-   std::cout << "Length: " << length << std::endl;
-
-   std::string curr_time = getCurrentTime();
-   std::cout << "Current Time: " << curr_time << std::endl;
-
-   std::string modified_time = getLastModified(file);
-   std::cout << "Last Modified Time: " << modified_time << std::endl;
-   */
-   /******************/
 
    n = writeResponse(file, sock); 
    if (n < 0) error("ERROR writing to socket");
