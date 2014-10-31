@@ -29,8 +29,8 @@ int getContentLength(const std::string&);
 std::string getContentType (const std::string&);
 std::string getCurrentTime();
 std::string getLastModified(const std::string&);
-std::string writeHTML(const std::string&, int); 
-std::string writePic(const std::string&, int); 
+int writeResponse(const std::string&, int); 
+std::string getFileData(const std::string&); 
 
 void sigchld_handler(int s)
 {
@@ -249,7 +249,7 @@ std::string getLastModified(const std::string& file) {
 
   int return_val = stat(file.c_str(), &attributes);        // Get attributes of file
   if (return_val != 0) {
-    std::cout << "Error determining last modified!" << std::endl;
+    // std::cout << "Error determining last modified!" << std::endl;
     return "";
   }
 
@@ -266,7 +266,6 @@ int writeResponse (const std::string& filepath, int sock) {
 
   lastModified = getLastModified(filepath);
   if (lastModified == "") {
-    std::cout << "I'm here" << std::endl;
     return write(sock, responseError.c_str(), responseError.length());
   }
 
@@ -277,15 +276,11 @@ int writeResponse (const std::string& filepath, int sock) {
   contentLength = sstm.str(); 
   response = response + "Content-Length: " + contentLength + "\r\n";
   response = response + "Content-Type: " + getContentType(filepath) + "\r\n\r\n"; 
+
   std::string fileType = getFileType(filepath);
 
-  if (fileType == "html") {
-    response += writeHTML(filepath, sock); 
-    return write(sock, response.c_str(), response.length()); 
-  }
-
-  else if (fileType == "jpeg" || "gif") {
-    response += writePic(filepath, sock);
+  if (fileType == "html" || "jpeg" || "gif") {
+    response += getFileData(filepath); 
     return write(sock, response.c_str(), response.length()); 
   }
 
@@ -296,43 +291,16 @@ int writeResponse (const std::string& filepath, int sock) {
   }
 }
 
-std::string writeHTML(const std::string& filepath, int sock) {
-  std::string response, line; 
+std::string getFileData(const std::string& filepath) { 
+  std::ostringstream response;
+  std::ifstream request(filepath.c_str(), std::ifstream::in | std::ifstream::binary);
 
-  // std::cout << "File: " << filepath << std::endl;
-
-  std::ifstream request(filepath.c_str());
-
-  // std::cout << request << std::endl;
-
-  if (request.is_open()) {
-    while(std::getline(request, line)) {
-      response += line;
-      // std::cout << "Line: " << line << std::endl;
-    }
-
-  request.close();  
+  if (request) {
+      response << request.rdbuf();
+      request.close();  
   }
-  return response; 
-}
 
-std::string writePic (const std::string& filepath, int sock) {
-  std::string response, line; 
-
-  // std::cout << "File: " << filepath << std::endl;
-
-  std::ifstream request(filepath.c_str(), std::ifstream::binary);
-
-  // std::cout << request << std::endl;
-
-  if (request.is_open()) {
-    while (!request.eof()) {
-      response += request.get();
-    }
-
-  request.close();  
-  }
-  return response; 
+  return response.str(); 
 }
 
 /******** DOSTUFF() *********************
@@ -347,13 +315,12 @@ void dostuff (int sock)
    std::string message, response;
    std::string end_string = "\r\n\r\n";
 
-   // Reads 255 bytes of the entire input at a time
+   // Reads 256 bytes of the entire input at a time
    while (1) {
-      n = read(sock, buffer, 255);
+      n = read(sock, buffer, 256);
       if (n < 0) error("ERROR reading from socket");
-      std::string temp = std::string(buffer);
+      std::string temp(buffer);
       message += temp;
-      //std::cout << temp << std::endl;
 
       end = message.find(end_string);
       if (end != std::string::npos) {
