@@ -8,6 +8,7 @@
 #include <cstring>
 #include <vector>
 #include <fstream>
+#include <sstream> 
 #include <stdlib.h>
 
 using namespace std;
@@ -25,18 +26,18 @@ int main(int argc, char** argv) {
 	int sockfd, portno, n;
 	struct sockaddr_in serv_addr, client_addr;
 	socklen_t len = sizeof(struct sockaddr_in);
-	string hostname, filename, line;
+	string filename, line, buffer;
 	char temp[100];
 	message msg;
 	vector<message> packets;
 	
-	if (argc < 3) {
+	if (argc < 2) {
 		cerr << "ERROR: Incorrect number of arguments" << endl;
+		cerr << "sender <portnumber>" << endl;
 		return -1;
 	}
 
-	hostname = argv[1];
-	portno = atoi(argv[2]);
+	portno = atoi(argv[1]);
 
 	// Set socket and populate server address
 	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -57,9 +58,11 @@ int main(int argc, char** argv) {
 			(struct sockaddr*) &client_addr, &len);
 	} while (n == -1);
 
-	for (int i = 0; i < strlen(temp) - 1; i++) {
+	for (int i = 0; i < strlen(temp); i++) {
 		filename += temp[i];
 	}
+
+	cout << "Filename: " << filename << endl;
 
 	// Create initial ACK for file request
 	msg.type = false;
@@ -70,33 +73,61 @@ int main(int argc, char** argv) {
 	sendto(sockfd, &msg, sizeof(message), 0,
 		(struct sockaddr*) &serv_addr, len);
 
-	ifstream file(filename.c_str());
-	file.get();
-	if (file.is_open()) {
-		// Split data into packets
-		int i = 0;
-		while (!file.eof()) {
-			line += file.get();
-			if (i == 999) {
-				// Populate new packet
-				message current;
-				current.type = true;
-				current.seq_num = packets.size();
-				current.last_packet = false;
-				current.body = line;
-				packets.push_back(current);
-				cout << "Number of packets: " << packets.size() << endl;
+	std::ostringstream response;
+	std::ifstream request(filename.c_str());
 
-				line = "";
-				i = -1;
-			}
-
-			i++;
-		}
-
-		file.close();
-		packets[packets.size()-1].last_packet = true;
+	if (request) {
+	  response << request.rdbuf();
+	  request.close();  
+	  buffer = response.str(); 
 	} else {
 		cerr << "ERROR: File not found" << endl;
+		return -1;
+	}
+
+	int counter = 0;
+
+	// Split data into packets
+	// cout << "In file" << endl;
+	for (int i = 0; i < buffer.size(); i++) {
+		line += buffer[i];
+		if (i == MAX_PACKET_SIZE - 2) {
+			line += '\0'; 
+			// Populate new packet
+			message current;
+			current.type = true;
+			current.seq_num = packets.size();
+			current.last_packet = false;
+			current.body = line;
+			packets.push_back(current);
+
+			line = "";
+			counter = -1;
+		} 
+
+		counter++;
+	}
+
+	if (line != "") {
+			message current;
+			current.type = true;
+			current.seq_num = packets.size();
+			current.last_packet = false;
+			current.body = line;
+			packets.push_back(current);
+	}
+
+	// cout << "Closing file" << endl;
+	packets[packets.size()-1].last_packet = true;
+
+	cout << "Number of packets: " << packets.size() << endl;
+	for (int i = 0; i < packets.size(); i++) {
+		cout << "Data: " << packets[i].body << endl;
+		message recv;
+		sendto(sockfd, &(packets[i]), sizeof(message), 0,
+			(struct sockaddr*) &client_addr, len);
+
+		while (recvfrom(sockfd, &recv, sizeof(message), 0,
+			(struct sockaddr*) &client_addr, &len) == -1);
 	}
 }

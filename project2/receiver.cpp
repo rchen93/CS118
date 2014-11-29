@@ -30,12 +30,13 @@ int main(int argc, char** argv) {
 
 	if (argc < 4) {
 		cerr << "Incorrect number of arguments" << endl;
+		cerr << "receiver <sender_hostname> <sender_portnumber> <filename>" << endl;
 		return -1;
 	}
 
-	hostname = argv[2];
-	portno = atoi(argv[3]);
-	filename = argv[4];
+	hostname = argv[1];
+	portno = atoi(argv[2]);
+	filename = argv[3];
 
 	// Set socket and populate server address
 	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -46,21 +47,31 @@ int main(int argc, char** argv) {
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_port = htons(portno);
 
+	cout << "Sending initial request" << endl;
 	// Send initial request for the file
 	n = sendto(sockfd, filename.c_str(), filename.size(), 0,
 		(struct sockaddr*) &serv_addr, len);
 
+	cout << "Receiving ACK" << endl;
 	// Receive ACK from server
 	while (recvfrom(sockfd, &msg, sizeof(msg), 0,
 		(struct sockaddr*) &serv_addr, &len) == -1);
 
 	seq = msg.seq_num;
+	cout << "Seq: " << seq << endl;
 
 	while (true) {
-		n = recvfrom(sockfd, &msg, MAX_PACKET_SIZE, 0,
+		cout << "Inside while loop" << endl; 
+		bzero(&msg, sizeof(message));
+		cout << "Zeroed out message" << endl; 
+		n = recvfrom(sockfd, &msg, sizeof(message), 0,
 			(struct sockaddr*) &serv_addr, &len);
-		if (n == -1) continue;
-
+		if (n == -1) {
+			cout << "n is -1" << endl;
+			continue;
+		}
+		cout << "Received packet: " << msg.seq_num << endl;
+		cout << msg.body << endl;
 		messages.push_back(msg.body);
 
 		msg.type = false;
