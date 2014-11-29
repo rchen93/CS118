@@ -7,6 +7,7 @@
 #include <vector>
 #include <string>
 #include <cstring>
+#include <stdlib.h> 
 
 using namespace std;
 
@@ -22,7 +23,7 @@ struct message {
 int main(int argc, char** argv) {
 	int sockfd, portno, n, seq;
 	struct sockaddr_in serv_addr;
-	socklen_t len = sizeof(struct serv_addr);
+	socklen_t len = sizeof(struct sockaddr_in);
 	string hostname, filename;
 	vector<string> messages;
 	message msg;
@@ -62,7 +63,7 @@ int main(int argc, char** argv) {
 
 		messages.push_back(msg.body);
 
-		msg.message_type = false;
+		msg.type = false;
 		bzero(&msg.body, MAX_PACKET_SIZE);
 		sendto(sockfd, &msg, n, 0, 
 			(struct sockaddr*) &serv_addr, sizeof(serv_addr));

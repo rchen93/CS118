@@ -8,6 +8,7 @@
 #include <cstring>
 #include <vector>
 #include <fstream>
+#include <stdlib.h>
 
 using namespace std;
 
@@ -41,7 +42,7 @@ int main(int argc, char** argv) {
 	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 	bzero((char*) &serv_addr, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;
-	serv_addr.sin_port = htons(port);
+	serv_addr.sin_port = htons(portno);
 	serv_addr.sin_addr.s_addr = INADDR_ANY;			// Server binds to any/all interfaces
 
 	// Bind server to socket
@@ -61,8 +62,8 @@ int main(int argc, char** argv) {
 	}
 
 	// Create initial ACK for file request
-	msg.message_type = false;
-	msg.seq_num = 0
+	msg.type = false;
+	msg.seq_num = 0;
 	msg.last_packet = false;
 
 	// Send ACK with initial seq number 0
@@ -79,7 +80,7 @@ int main(int argc, char** argv) {
 			if (i == 999) {
 				// Populate new packet
 				message current;
-				current.message_type = true;
+				current.type = true;
 				current.seq_num = packets.size();
 				current.last_packet = false;
 				current.body = line;

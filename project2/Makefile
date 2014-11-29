@@ -1,12 +1,12 @@
 all: receivermake sendermake
 receivermake : receiver.cpp
-g++ -o receiver receiver.cpp
+	g++ -o receiver receiver.cpp
 sendermake : sender.cpp
-g++ -o sender sender.cpp
+	g++ -o sender sender.cpp
 clean: receiverclean senderclean receivedclean
 receiverclean :
-rm receiver
+	rm receiver
 senderclean :
-rm sender
+	rm sender
 receivedclean :
-rm received_*
+	rm received_*
