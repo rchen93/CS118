@@ -10,6 +10,8 @@
 
 using namespace std;
 
+const int MAX_PACKET_SIZE = 1000;
+
 struct message {
 	bool type;		// True for msg, false for ACK
 	int seq_num;
@@ -54,14 +56,14 @@ int main(int argc, char** argv) {
 	seq = msg.seq_num;
 
 	while (true) {
-		n = recvfrom(sockfd, &msg, 1000, 0,
+		n = recvfrom(sockfd, &msg, MAX_PACKET_SIZE, 0,
 			(struct sockaddr*) &serv_addr, &len);
 		if (n == -1) continue;
 
 		messages.push_back(msg.body);
 
 		msg.message_type = false;
-		bzero(&msg.body, 1000);
+		bzero(&msg.body, MAX_PACKET_SIZE);
 		sendto(sockfd, &msg, n, 0, 
 			(struct sockaddr*) &serv_addr, sizeof(serv_addr));
 
