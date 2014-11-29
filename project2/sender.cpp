@@ -19,7 +19,7 @@ struct message {
 	bool type;
 	int seq_num;
 	bool last_packet;
-	string body;
+	char body[1000];
 };
 
 int main(int argc, char** argv) {
@@ -70,11 +70,11 @@ int main(int argc, char** argv) {
 	msg.last_packet = false;
 
 	// Send ACK with initial seq number 0
-	sendto(sockfd, &msg, sizeof(message), 0,
-		(struct sockaddr*) &serv_addr, len);
+	sendto(sockfd, &msg, sizeof(msg), 0,
+		(struct sockaddr*) &client_addr, len);
 
-	std::ostringstream response;
-	std::ifstream request(filename.c_str());
+	ostringstream response;
+	ifstream request(filename.c_str());
 
 	if (request) {
 	  response << request.rdbuf();
@@ -89,45 +89,50 @@ int main(int argc, char** argv) {
 
 	// Split data into packets
 	// cout << "In file" << endl;
+	message current;
+	current.last_packet = false;
+	current.type = true;
 	for (int i = 0; i < buffer.size(); i++) {
-		line += buffer[i];
-		if (i == MAX_PACKET_SIZE - 2) {
-			line += '\0'; 
-			// Populate new packet
-			message current;
-			current.type = true;
+		current.body[i] = buffer[i];
+		if (counter == MAX_PACKET_SIZE - 2) {
+			cout << "Packet has 999 bytes" << endl;
+			current.body[MAX_PACKET_SIZE - 1] = '\0';
 			current.seq_num = packets.size();
-			current.last_packet = false;
-			current.body = line;
 			packets.push_back(current);
 
-			line = "";
 			counter = -1;
-		} 
-
+		}
 		counter++;
 	}
 
-	if (line != "") {
-			message current;
-			current.type = true;
-			current.seq_num = packets.size();
-			current.last_packet = false;
-			current.body = line;
-			packets.push_back(current);
+	if (counter != 0) {
+		cout << "Last packet is smaller than max packet size" << endl;
+		current.body[counter] = '\0';
+		cout << "Last packet data: " << current.body << endl; 
+		current.seq_num = packets.size();
+		cout << "Last Packet seq_num: " << current.seq_num << endl;
+		current.last_packet = true;
+		packets.push_back(current);
+	} else {
+		packets[packets.size() - 1].last_packet = true;
 	}
-
-	// cout << "Closing file" << endl;
-	packets[packets.size()-1].last_packet = true;
 
 	cout << "Number of packets: " << packets.size() << endl;
 	for (int i = 0; i < packets.size(); i++) {
 		cout << "Data: " << packets[i].body << endl;
-		message recv;
-		sendto(sockfd, &(packets[i]), sizeof(message), 0,
+		sendto(sockfd, &(packets[i]), sizeof(packets[i]), 0,
 			(struct sockaddr*) &client_addr, len);
-
-		while (recvfrom(sockfd, &recv, sizeof(message), 0,
-			(struct sockaddr*) &client_addr, &len) == -1);
 	}
+
+	while (true) {
+		// Get a packet
+		message recv;
+		n = recvfrom(sockfd, &recv, sizeof(recv), 0,
+			(struct sockaddr*) &client_addr, &len);
+		if (n == 0)
+			continue;	// No more messages
+		else if (n < 0)
+			break;	// Error
+	}
+	
 }

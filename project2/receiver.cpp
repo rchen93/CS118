@@ -17,7 +17,7 @@ struct message {
 	bool type;		// True for msg, false for ACK
 	int seq_num;
 	bool last_packet;	// True if it is last packet
-	string body;
+	char body[1000];
 };
 
 int main(int argc, char** argv) {
@@ -64,22 +64,32 @@ int main(int argc, char** argv) {
 		cout << "Inside while loop" << endl; 
 		bzero(&msg, sizeof(message));
 		cout << "Zeroed out message" << endl; 
-		n = recvfrom(sockfd, &msg, sizeof(message), 0,
+		n = recvfrom(sockfd, &msg, sizeof(msg), 0,
 			(struct sockaddr*) &serv_addr, &len);
-		if (n == -1) {
-			cout << "n is -1" << endl;
+
+		if (n <= 0) {
+			cout << "We here" << endl;
 			continue;
 		}
 		cout << "Received packet: " << msg.seq_num << endl;
+		cout << "Body: " << endl;
 		cout << msg.body << endl;
 		messages.push_back(msg.body);
+		cout << "Seg fault after push?" << endl;
 
-		msg.type = false;
-		bzero(&msg.body, MAX_PACKET_SIZE);
-		sendto(sockfd, &msg, n, 0, 
+		message ack;
+		ack.type = false;
+		sendto(sockfd, &ack, sizeof(ack), 0, 
 			(struct sockaddr*) &serv_addr, sizeof(serv_addr));
 
 		if (msg.last_packet) break;
+	}
+
+	cout << "Exited loop" << endl;
+
+	for (int i = 0; i < messages.size(); i++) {
+		cout << "Packet " << i << endl;
+		cout << messages[i];
 	}
 
 }
