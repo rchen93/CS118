@@ -1,1 +1,19 @@
-THis is a test file.
+1. In this project, you will implement a simple window-based protocol built on top of either Selective Repeat
+protocol or Go-Back-N protocol described in the textbook. It's up to you which protocol you will work
+on. Stop-wait and Stop-forward protocols are NOT allowed in this project. You must write one program
+implementing the sender side, and another program implementing the receiver side. Only C and/or C++ are
+allowed in this project. No 3rd-party libraries are allowed.
+2. The two programs should communicate the User Datagram Protocol (UDP), which does not guarantee data
+delivery.
+3. The receiver program will also act as a client application, requesting a file from the sender side.
+4. The receiver program will take the hostname and port number of the sender, and the name of a file it wants
+to retrieve from the sender as a command line arguments. For example:
+to run the sender program: shell > sender < portnumber >
+to run the receiver program: shell > receiver < sender hostname >< sender portnumber >< filename >
+5. The receiver will first send a message to the sender which includes the name of the file requested. If the file
+exists, the sender will divide the entire file into multiple packets (the maximum packet size is 1K bytes), and
+then add some header information to each packet before sending them to the receiver. It is up to you what
+information you want to include in the header (e.g. Source, Destination port etc...), but you will at least need
+a sequence number field. You are free to define what kind of messages you will require, and the format of the
+messages. You can create a large file being requested on your own, but make sure the file is transmitted in
+multiple packets.

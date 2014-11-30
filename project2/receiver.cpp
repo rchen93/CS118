@@ -47,49 +47,62 @@ int main(int argc, char** argv) {
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_port = htons(portno);
 
-	cout << "Sending initial request" << endl;
 	// Send initial request for the file
+	cout << "Sending initial request for file" << endl;
 	n = sendto(sockfd, filename.c_str(), filename.size(), 0,
 		(struct sockaddr*) &serv_addr, len);
 
-	cout << "Receiving ACK" << endl;
 	// Receive ACK from server
+	cout << "Receiving ACK" << endl;
 	while (recvfrom(sockfd, &msg, sizeof(msg), 0,
 		(struct sockaddr*) &serv_addr, &len) == -1);
-
 	seq = msg.seq_num;
 	cout << "Seq: " << seq << endl;
 
+	int expected_seq_num = seq + 1;
 	while (true) {
-		cout << "Inside while loop" << endl; 
 		bzero(&msg, sizeof(message));
-		cout << "Zeroed out message" << endl; 
 		n = recvfrom(sockfd, &msg, sizeof(msg), 0,
 			(struct sockaddr*) &serv_addr, &len);
 
 		if (n <= 0) {
-			cout << "We here" << endl;
 			continue;
 		}
 		cout << "Received packet: " << msg.seq_num << endl;
-		cout << "Body: " << endl;
-		cout << msg.body << endl;
-		messages.push_back(msg.body);
-		cout << "Seg fault after push?" << endl;
-
+		
+		// Packet is received in order
 		message ack;
-		ack.type = false;
-		sendto(sockfd, &ack, sizeof(ack), 0, 
-			(struct sockaddr*) &serv_addr, sizeof(serv_addr));
+		if (msg.seq_num == expected_seq_num) {
+			cout << "Correct Sequence #" << endl;
+			messages.push_back(msg.body);
 
-		if (msg.last_packet) break;
+			// Build ACK
+			ack.type = false;
+			ack.seq_num = expected_seq_num;
+			sendto(sockfd, &ack, sizeof(ack), 0, 
+				(struct sockaddr*) &serv_addr, sizeof(serv_addr));
+
+			// Update sequence number
+			expected_seq_num += sizeof(msg.body);
+
+			if (msg.last_packet) {
+				cout << "Last packet received" << endl;
+				break;
+			}
+
+		}
+		// Duplicate ACK
+		else {
+			ack.type = false;
+			ack.seq_num = expected_seq_num;
+			sendto(sockfd, &ack, sizeof(ack), 0, 
+				(struct sockaddr*) &serv_addr, sizeof(serv_addr));
+		}
 	}
-
-	cout << "Exited loop" << endl;
 
 	for (int i = 0; i < messages.size(); i++) {
 		cout << "Packet " << i << endl;
-		cout << messages[i];
+		cout << messages[i] << endl << endl;
 	}
 
 }
