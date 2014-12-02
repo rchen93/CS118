@@ -7,11 +7,13 @@
 #include <vector>
 #include <string>
 #include <cstring>
-#include <stdlib.h> 
+#include <stdlib.h>
+#include <fstream> 
 
 using namespace std;
 
 const int MAX_PACKET_SIZE = 1000;
+const int RESEND = 10;
 
 struct message {
 	bool type;		// True for msg, false for ACK
@@ -114,11 +116,29 @@ int main(int argc, char** argv) {
 		}
 	}
 
-	cout << endl;
-	cout << "Packets received" << endl;
-	for (int i = 0; i < messages.size(); i++) {
-		cout << "Packet " << i+1 << endl;
-		cout << messages[i] << endl << endl;
+	// Send repeated ACK's to ensure that the server does not have last ACK dropped
+	// Continue to resend last packet even after client closes
+	message last;
+	last.seq_num = seq;
+	for (int i = 0; i < RESEND; i++) {
+		sendto(sockfd, &last, sizeof(last), 0,
+			(struct sockaddr*) &serv_addr, sizeof(serv_addr));
 	}
+
+	// Write packet contents to file
+	ofstream output;
+	string output_filename = "received_" + filename;
+	output.open(output_filename.c_str(), ios::out | ios::binary);
+	for (int i = 0; i < messages.size(); i++) {
+		output << messages[i];
+	}
+	output.close();
+
+	// cout << endl;
+	// cout << "Packets received" << endl;
+	// for (int i = 0; i < messages.size(); i++) {
+	// 	cout << "Packet " << i+1 << endl;
+	// 	cout << messages[i] << endl << endl;
+	// }
 
 }

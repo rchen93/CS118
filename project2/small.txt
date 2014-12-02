@@ -1,1 +1,0 @@
-This is a small file used for a max packet size of 10.
