@@ -63,6 +63,7 @@ int main(int argc, char** argv) {
 	cout << "ACK's packet number: " << packet << endl;
 
 	int expected_packet_num = packet + 1;
+	seq++;
 	while (true) {
 		bzero(&msg, sizeof(message));
 		n = recvfrom(sockfd, &msg, sizeof(msg), 0,
@@ -85,7 +86,7 @@ int main(int argc, char** argv) {
 			// Make ACK packet
 			ack.type = false;
 			ack.packet_num = expected_packet_num;
-			seq += sizeof(msg.body);
+			seq += strlen(msg.body);
 			ack.seq_num = seq;
 
 			// Send ACK packet
@@ -113,8 +114,10 @@ int main(int argc, char** argv) {
 		}
 	}
 
+	cout << endl;
+	cout << "Packets received" << endl;
 	for (int i = 0; i < messages.size(); i++) {
-		cout << "Packet " << i << endl;
+		cout << "Packet " << i+1 << endl;
 		cout << messages[i] << endl << endl;
 	}
 

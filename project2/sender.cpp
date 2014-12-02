@@ -18,12 +18,13 @@ const int MAX_PACKET_SIZE = 1000;
 struct message {
 	bool type;
 	int seq_num;
+	int packet_num; 
 	bool last_packet;
 	char body[1000];
 };
 
 int main(int argc, char** argv) {
-	int sockfd, portno, n, seq_num = 0, counter = 0;
+	int sockfd, portno, n, seq_num = 0, counter = 0, packet_num = 0;
 	struct sockaddr_in serv_addr, client_addr;
 	socklen_t len = sizeof(struct sockaddr_in);
 	string filename, line, buffer;
@@ -67,8 +68,10 @@ int main(int argc, char** argv) {
 	// Create initial ACK for file request
 	initial.type = false;
 	initial.seq_num = seq_num;
+	initial.packet_num = packet_num; 
 	initial.last_packet = true;
-	seq_num++;
+	seq_num++;				//should we increment?
+	packet_num++; 			//should we increment?
 
 	// Send ACK with initial seq number 0
 	sendto(sockfd, &initial, sizeof(initial), 0,
@@ -95,10 +98,12 @@ int main(int argc, char** argv) {
 			cout << "Packet has 999 bytes" << endl;
 			current.body[MAX_PACKET_SIZE - 1] = '\0';
 			current.seq_num = seq_num;
+			current.packet_num = packet_num; 
 			packets.push_back(current);
 
 			counter = -1;
 			seq_num += MAX_PACKET_SIZE;
+			packet_num++; 
 		}
 		counter++;
 	}
@@ -108,10 +113,13 @@ int main(int argc, char** argv) {
 		current.body[counter] = '\0';
 		// cout << "Last packet data: " << current.body << endl; 
 		current.seq_num = seq_num;
+		current.packet_num = packet_num; 
 		cout << "Last Packet seq_num: " << current.seq_num << endl;
+		cout << "Last Packet packet_num: " << current.packet_num << endl; 
 		current.last_packet = true;
 		packets.push_back(current);
-		seq_num++;
+		//seq_num++; why is this even here o.O
+		packet_num++; 
 	} else {
 		packets[packets.size() - 1].last_packet = true;
 	}
