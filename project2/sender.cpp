@@ -14,6 +14,7 @@
 using namespace std;
 
 const int MAX_PACKET_SIZE = 1000;
+const int WINDOW_SIZE = 5;
 
 struct message {
 	bool type;
@@ -124,13 +125,12 @@ int main(int argc, char** argv) {
 		packets[packets.size() - 1].last_packet = true;
 	}
 
-	int cwnd = 5;
 	int base = 0;
-	int next_seq_num = base + cwnd;
+	int next_packet_num = base + WINDOW_SIZE;
 
 	cout << "Number of packets: " << packets.size() << endl;
 	// Send initial packets
-	for (int i = 0; i < cwnd; i++) {
+	for (int i = 0; i < WINDOW_SIZE; i++) {
 		cout << "Data: " << packets[i].body << endl;
 		sendto(sockfd, &packets[i], sizeof(packets[i]), 0,
 			(struct sockaddr*) &client_addr, len);
@@ -151,14 +151,14 @@ int main(int argc, char** argv) {
 
 		cout << "Received ACK " << received.seq_num << endl;
 
-		if (received.seq_num >= base) {
+		if (received.packet_num >= base) {
 			// Send up to window size
-			base = received.seq_num + 1;
-			for (int i = next_seq_num; i < base + cwnd; i++) {
+			base = received.packet_num + 1;
+			for (int i = next_packet_num; i < base + WINDOW_SIZE && packets.size(); i++) {
 				sendto(sockfd, &packets[i], sizeof(packets[i]), 0,
 					(struct sockaddr*) &client_addr, len);
 			}
-			next_seq_num = base + cwnd;
+			next_packet_num = base + WINDOW_SIZE;
 		}
 	}
 	
