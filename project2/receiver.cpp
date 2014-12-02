@@ -16,12 +16,13 @@ const int MAX_PACKET_SIZE = 1000;
 struct message {
 	bool type;		// True for msg, false for ACK
 	int seq_num;
+	int packet_num;
 	bool last_packet;	// True if it is last packet
 	char body[1000];
 };
 
 int main(int argc, char** argv) {
-	int sockfd, portno, n, seq;
+	int sockfd, portno, n, seq, packet;
 	struct sockaddr_in serv_addr;
 	socklen_t len = sizeof(struct sockaddr_in);
 	string hostname, filename;
@@ -57,9 +58,11 @@ int main(int argc, char** argv) {
 	while (recvfrom(sockfd, &msg, sizeof(msg), 0,
 		(struct sockaddr*) &serv_addr, &len) == -1);
 	seq = msg.seq_num;
-	cout << "Seq: " << seq << endl;
+	packet = msg.packet_num;
+	cout << "ACK's sequence number: " << seq << endl;
+	cout << "ACK's packet number: " << packet << endl;
 
-	int expected_seq_num = seq + 1;
+	int expected_packet_num = packet + 1;
 	while (true) {
 		bzero(&msg, sizeof(message));
 		n = recvfrom(sockfd, &msg, sizeof(msg), 0,
@@ -68,22 +71,29 @@ int main(int argc, char** argv) {
 		if (n <= 0) {
 			continue;
 		}
-		cout << "Received packet: " << msg.seq_num << endl;
+		cout << "Received packet with Sequence Number: " << msg.seq_num << endl;
+		cout << "Received packet " << msg.packet_num << endl;
 		
 		// Packet is received in order
 		message ack;
-		if (msg.seq_num == expected_seq_num) {
-			cout << "Correct Sequence #" << endl;
+		if (msg.packet_num == expected_packet_num) {
+			cout << "Correct Packet #" << endl;
+
+			// Extract 
 			messages.push_back(msg.body);
 
-			// Build ACK
+			// Make ACK packet
 			ack.type = false;
-			ack.seq_num = expected_seq_num;
+			ack.packet_num = expected_packet_num;
+			seq += sizeof(msg.body);
+			ack.seq_num = seq;
+
+			// Send ACK packet
 			sendto(sockfd, &ack, sizeof(ack), 0, 
 				(struct sockaddr*) &serv_addr, sizeof(serv_addr));
 
-			// Update sequence number
-			expected_seq_num += sizeof(msg.body);
+			// Update packet number
+			expected_packet_num++;
 
 			if (msg.last_packet) {
 				cout << "Last packet received" << endl;
@@ -91,10 +101,13 @@ int main(int argc, char** argv) {
 			}
 
 		}
-		// Duplicate ACK
+		// Out-of-order packet
+		// Resend ACK for most recently received in-order packet
 		else {
 			ack.type = false;
-			ack.seq_num = expected_seq_num;
+			ack.seq_num = seq;
+			ack.packet_num = expected_packet_num;
+
 			sendto(sockfd, &ack, sizeof(ack), 0, 
 				(struct sockaddr*) &serv_addr, sizeof(serv_addr));
 		}
