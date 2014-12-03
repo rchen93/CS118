@@ -9,26 +9,20 @@
 #include <cstring>
 #include <stdlib.h>
 #include <fstream> 
+#include <sstream>
+
+#include "common.h"
 
 using namespace std;
 
-const int MAX_PACKET_SIZE = 1000;
 const int RESEND = 10;
 
-struct message {
-	bool type;		// True for msg, false for ACK
-	int seq_num;
-	int packet_num;
-	bool last_packet;	// True if it is last packet
-	char body[1000];
-};
-
 int main(int argc, char** argv) {
-	int sockfd, portno, n, seq, packet;
+	int sockfd, portno, n, seq = 0;
 	struct sockaddr_in serv_addr;
 	socklen_t len = sizeof(struct sockaddr_in);
 	string hostname, filename;
-	vector<string> messages;
+	vector<pair<string,int> > messages;
 	message msg;
 
 	if (argc < 4) {
@@ -51,21 +45,23 @@ int main(int argc, char** argv) {
 	serv_addr.sin_port = htons(portno);
 
 	// Send initial request for the file
-	cout << "Sending initial request for file" << endl;
+	cout << "Sending initial request for file: " << filename.c_str() << endl;
 	n = sendto(sockfd, filename.c_str(), filename.size(), 0,
 		(struct sockaddr*) &serv_addr, len);
 
 	// Receive ACK from server
-	cout << "Receiving ACK" << endl;
-	while (recvfrom(sockfd, &msg, sizeof(msg), 0,
+	cout << "Receiving ACK for initial request" << endl;
+	message initial;
+	while (recvfrom(sockfd, &initial, sizeof(initial), 0,
 		(struct sockaddr*) &serv_addr, &len) == -1);
-	seq = msg.seq_num;
-	packet = msg.packet_num;
-	cout << "ACK's sequence number: " << seq << endl;
-	cout << "ACK's packet number: " << packet << endl;
 
-	int expected_packet_num = packet + 1;
-	seq++;
+	if (initial.seq_num == -1) {
+		cerr << "ERROR: File not found" << endl;
+		return -1;
+	}
+
+	int expected_packet_num = 0;
+
 	while (true) {
 		bzero(&msg, sizeof(message));
 		n = recvfrom(sockfd, &msg, sizeof(msg), 0,
@@ -74,7 +70,7 @@ int main(int argc, char** argv) {
 		if (n <= 0) {
 			continue;
 		}
-		cout << "Received packet with Sequence Number: " << msg.seq_num << endl;
+		cout << "Received packet with sequence Number: " << msg.seq_num << endl;
 		cout << "Received packet " << msg.packet_num << endl;
 		
 		// Packet is received in order
@@ -83,12 +79,16 @@ int main(int argc, char** argv) {
 			cout << "Correct Packet #" << endl;
 
 			// Extract 
-			messages.push_back(msg.body);
+			string data;
+			for (unsigned int i = 0; i < msg.data_length; i++) {
+				data += msg.data[i];
+			}
+			messages.push_back(make_pair(data, msg.data_length));
 
 			// Make ACK packet
 			ack.type = false;
 			ack.packet_num = expected_packet_num;
-			seq += strlen(msg.body);
+			seq += msg.data_length;
 			ack.seq_num = seq;
 
 			// Send ACK packet
@@ -125,20 +125,27 @@ int main(int argc, char** argv) {
 			(struct sockaddr*) &serv_addr, sizeof(serv_addr));
 	}
 
-	// Write packet contents to file
-	ofstream output;
-	string output_filename = "received_" + filename;
-	output.open(output_filename.c_str(), ios::out | ios::binary);
-	for (int i = 0; i < messages.size(); i++) {
-		output << messages[i];
-	}
-	output.close();
-
 	// cout << endl;
 	// cout << "Packets received" << endl;
 	// for (int i = 0; i < messages.size(); i++) {
 	// 	cout << "Packet " << i+1 << endl;
-	// 	cout << messages[i] << endl << endl;
+	// 	cout << messages[i].first << endl << endl;
 	// }
+
+	// Write packet contents to file
+	ofstream output;
+	stringstream output_buffer; 
+	string output_filename = "received_" + filename;
+	output.open(output_filename.c_str(), ios::out | ios::binary);
+
+	if (!output.is_open()) {
+		cerr << "Could not open file" << endl;
+	}
+	
+	for (int i = 0; i < messages.size(); i++) {
+		output << messages[i].first;
+	}
+	output << output_buffer.rdbuf();
+	output.close();
 
 }

@@ -10,28 +10,23 @@
 #include <fstream>
 #include <sstream> 
 #include <stdlib.h>
+#include <iterator>
+
+#include "common.h"
 
 using namespace std;
 
-const int MAX_PACKET_SIZE = 1000;
 const int WINDOW_SIZE = 5;
-
-struct message {
-	bool type;
-	int seq_num;
-	int packet_num; 
-	bool last_packet;
-	char body[1000];
-};
 
 int main(int argc, char** argv) {
 	int sockfd, portno, n, seq_num = 0, counter = 0, packet_num = 0;
 	struct sockaddr_in serv_addr, client_addr;
 	socklen_t len = sizeof(struct sockaddr_in);
-	string filename, line, buffer;
+	string filename, line; 
 	char temp[100];
 	message initial, current;
 	vector<message> packets;
+	vector<unsigned char> buffer;
 	
 	if (argc < 2) {
 		cerr << "ERROR: Incorrect number of arguments" << endl;
@@ -60,6 +55,7 @@ int main(int argc, char** argv) {
 			(struct sockaddr*) &client_addr, &len);
 	} while (n == -1);
 
+	temp[n] = '\0';
 	for (int i = 0; i < strlen(temp); i++) {
 		filename += temp[i];
 	}
@@ -68,70 +64,81 @@ int main(int argc, char** argv) {
 
 	// Create initial ACK for file request
 	initial.type = false;
-	initial.seq_num = seq_num;
 	initial.packet_num = packet_num; 
 	initial.last_packet = true;
-	seq_num++;				//should we increment?
-	packet_num++; 			//should we increment?
-
-	// Send ACK with initial seq number 0
-	sendto(sockfd, &initial, sizeof(initial), 0,
-		(struct sockaddr*) &client_addr, len);
 
 	ostringstream response;
-	ifstream request(filename.c_str(), ios::in|ios::binary);
+	ifstream request(filename.c_str(), ios::in | ios::binary);
 
 	if (request) {
-	  response << request.rdbuf();
-	  request.close();  
-	  buffer = response.str(); 
+		initial.seq_num = seq_num;
+
+		// Send ACK with initial seq number 0 confirming valid file
+		sendto(sockfd, &initial, sizeof(initial), 0,
+			(struct sockaddr*) &client_addr, len);
+
+		buffer = vector<unsigned char>((istreambuf_iterator<char>(request)), (istreambuf_iterator<char>()));
+		cout << "Buffer size: " << buffer.size() << endl;
 	} else {
+		initial.seq_num = -1;
+
+		// Send ACK with initial seq number -1 confirming invalid file
+		sendto(sockfd, &initial, sizeof(initial), 0,
+			(struct sockaddr*) &client_addr, len);
+
 		cerr << "ERROR: File not found" << endl;
 		return -1;
 	}
 
-	// Split data into packets
 	current.last_packet = false;
 	current.type = true;
+	int data_length = 0;
+
+	// Split data into packets
 	for (int i = 0; i < buffer.size(); i++) {
-		current.body[counter] = buffer[i];
-		if (counter == MAX_PACKET_SIZE - 2) {
-			cout << "Packet has 999 bytes" << endl;
-			current.body[MAX_PACKET_SIZE - 1] = '\0';
+		current.data[counter] = buffer[i];
+		data_length++;
+		if (counter == DATA_SIZE - 1) {
+			cout << "Packet has MAX_PACKET_SIZE" << endl;
 			current.seq_num = seq_num;
-			current.packet_num = packet_num; 
+			current.packet_num = packet_num;
+			current.data_length = data_length;
 			packets.push_back(current);
 
 			counter = -1;
+			data_length = 0;
 			seq_num += MAX_PACKET_SIZE;
-			packet_num++; 
+			packet_num++;
 		}
-		counter++;
+		counter++; 
 	}
 
+	cout << "Counter: " << counter << endl;
 	if (counter != 0) {
 		cout << "Last packet is smaller than max packet size" << endl;
-		current.body[counter] = '\0';
-		// cout << "Last packet data: " << current.body << endl; 
+		current.data[counter] = '\0';
 		current.seq_num = seq_num;
-		current.packet_num = packet_num; 
-		cout << "Last Packet seq_num: " << current.seq_num << endl;
-		cout << "Last Packet packet_num: " << current.packet_num << endl; 
+		current.packet_num = packet_num;
+		current.data_length = data_length;
 		current.last_packet = true;
 		packets.push_back(current);
-		//seq_num++; why is this even here o.O
-		packet_num++; 
+		packet_num++;
 	} else {
+		packets[packets.size() - 1].data[DATA_SIZE - 1] = '\0';
 		packets[packets.size() - 1].last_packet = true;
 	}
 
-	int base = 0;
-	int next_packet_num = base + WINDOW_SIZE;
+	for (int i = 0; i < packets.size(); i++) {
+		sendto(sockfd, &packets[i], sizeof(packets[i]), 0,
+			(struct sockaddr*) &client_addr, len);
+	}
+
+	// int base = 0;
+	// int next_packet_num = base + WINDOW_SIZE;
 
 	cout << "Number of packets: " << packets.size() << endl;
-	// Send initial packets
-	for (int i = 0; i < WINDOW_SIZE; i++) {
-		cout << "Data: " << packets[i].body << endl;
+	// Send initial packets up to window size
+	for (int i = 0; i < WINDOW_SIZE && i < packets.size(); i++) {
 		sendto(sockfd, &packets[i], sizeof(packets[i]), 0,
 			(struct sockaddr*) &client_addr, len);
 	}
@@ -151,15 +158,15 @@ int main(int argc, char** argv) {
 
 		cout << "Received ACK " << received.seq_num << endl;
 
-		if (received.packet_num >= base) {
-			// Send up to window size
-			base = received.packet_num + 1;
-			for (int i = next_packet_num; i < base + WINDOW_SIZE && packets.size(); i++) {
-				sendto(sockfd, &packets[i], sizeof(packets[i]), 0,
-					(struct sockaddr*) &client_addr, len);
-			}
-			next_packet_num = base + WINDOW_SIZE;
-		}
+		// if (received.packet_num >= base) {
+		// 	// Send up to window size
+		// 	base = received.packet_num + 1;
+		// 	for (int i = next_packet_num; i < base + WINDOW_SIZE && i < packets.size(); i++) {
+		// 		sendto(sockfd, &packets[i], sizeof(packets[i]), 0,
+		// 			(struct sockaddr*) &client_addr, len);
+		// 	}
+		// 	next_packet_num = base + WINDOW_SIZE;
+		// }
 	}
 	
 }

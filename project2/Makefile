@@ -1,8 +1,8 @@
 all: receivermake sendermake
-receivermake : receiver.cpp
-	g++ -o receiver receiver.cpp
-sendermake : sender.cpp
-	g++ -o sender sender.cpp
+receivermake : receiver.cpp 
+	g++ -o receiver receiver.cpp -I.
+sendermake : sender.cpp common.h
+	g++ -o sender sender.cpp -I.
 clean: receiverclean senderclean receivedclean
 receiverclean :
 	rm receiver
