@@ -76,7 +76,7 @@ int main(int argc, char** argv) {
 		// Packet is received in order
 		message ack;
 		if (msg.packet_num == expected_packet_num) {
-			cout << "Correct Packet #" << endl;
+			cout << "In order packet received" << endl;
 
 			// Extract 
 			string data;
@@ -107,6 +107,8 @@ int main(int argc, char** argv) {
 		// Out-of-order packet
 		// Resend ACK for most recently received in-order packet
 		else {
+			cout << "Out of order packet received" << endl;
+			cout << "Expected: " << expected_packet_num << " Got: " << msg.packet_num << endl;
 			ack.type = false;
 			ack.seq_num = seq;
 			ack.packet_num = expected_packet_num;

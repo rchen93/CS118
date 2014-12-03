@@ -67,7 +67,6 @@ int main(int argc, char** argv) {
 	initial.packet_num = packet_num; 
 	initial.last_packet = true;
 
-	ostringstream response;
 	ifstream request(filename.c_str(), ios::in | ios::binary);
 
 	if (request) {
@@ -77,7 +76,7 @@ int main(int argc, char** argv) {
 		sendto(sockfd, &initial, sizeof(initial), 0,
 			(struct sockaddr*) &client_addr, len);
 
-		buffer = vector<unsigned char>((istreambuf_iterator<char>(request)), (istreambuf_iterator<char>()));
+		//buffer = vector<unsigned char>((istreambuf_iterator<char>(request)), (istreambuf_iterator<char>()));
 		cout << "Buffer size: " << buffer.size() << endl;
 	} else {
 		initial.seq_num = -1;
@@ -95,8 +94,12 @@ int main(int argc, char** argv) {
 	int data_length = 0;
 
 	// Split data into packets
-	for (int i = 0; i < buffer.size(); i++) {
-		current.data[counter] = buffer[i];
+	while (true) {
+		unsigned char c = request.get();
+		if (request.eof()) {
+			break;
+		}
+		current.data[counter] = c;
 		data_length++;
 		if (counter == DATA_SIZE - 1) {
 			cout << "Packet has MAX_PACKET_SIZE" << endl;
@@ -112,6 +115,23 @@ int main(int argc, char** argv) {
 		}
 		counter++; 
 	}
+	// for (int i = 0; i < buffer.size(); i++) {
+	// 	current.data[counter] = buffer[i];
+	// 	data_length++;
+	// 	if (counter == DATA_SIZE - 1) {
+	// 		cout << "Packet has MAX_PACKET_SIZE" << endl;
+	// 		current.seq_num = seq_num;
+	// 		current.packet_num = packet_num;
+	// 		current.data_length = data_length;
+	// 		packets.push_back(current);
+
+	// 		counter = -1;
+	// 		data_length = 0;
+	// 		seq_num += MAX_PACKET_SIZE;
+	// 		packet_num++;
+	// 	}
+	// 	counter++; 
+	// }
 
 	cout << "Counter: " << counter << endl;
 	if (counter != 0) {
@@ -129,6 +149,7 @@ int main(int argc, char** argv) {
 	}
 
 	for (int i = 0; i < packets.size(); i++) {
+		// cout << "Packet num: " << packets[i].packet_num << endl;
 		sendto(sockfd, &packets[i], sizeof(packets[i]), 0,
 			(struct sockaddr*) &client_addr, len);
 	}
@@ -138,7 +159,7 @@ int main(int argc, char** argv) {
 
 	cout << "Number of packets: " << packets.size() << endl;
 	// Send initial packets up to window size
-	for (int i = 0; i < WINDOW_SIZE && i < packets.size(); i++) {
+	for (int i = 0; i < packets.size(); i++) {
 		sendto(sockfd, &packets[i], sizeof(packets[i]), 0,
 			(struct sockaddr*) &client_addr, len);
 	}
