@@ -11,25 +11,23 @@
 #include <fstream> 
 #include <sstream>
 
-#include "common.h"
+#include "packet.h"
 
 using namespace std;
 
-const int RESEND = 10;
-
 int main(int argc, char** argv) {
-	int sockfd, portno, n, seq = 0;
+	int sockfd, portno, n, curr_seq_num = 0, expected_packet_num = 0;
 	struct sockaddr_in serv_addr;
-	socklen_t len = sizeof(struct sockaddr_in);
+	socklen_t len = sizeof(serv_addr);
 	string hostname, filename;
-	vector<pair<string,int> > messages;
-	message msg;
+	vector<string> packets;
+	Packet msg, initial, ack, last;
 	double loss_threshold, corrupt_threshold;
 
 	if (argc < 6) {
-		cerr << "Incorrect number of arguments" << endl;
+		cerr << "ERROR: Incorrect number of arguments" << endl;
 		cerr << "receiver <sender_hostname> <sender_portnumber> <filename> <packet_loss_probability> <packet_corruption_probability>" << endl;
-		return -1;
+		exit(1);
 	}
 
 	hostname = argv[1];
@@ -38,13 +36,21 @@ int main(int argc, char** argv) {
 	loss_threshold = atof(argv[4]);
 	corrupt_threshold = atof(argv[5]);
 
-	// Set socket and populate server address
+	if (loss_threshold < 0.0 || loss_threshold > 1.0 || corrupt_threshold < 0.0 || corrupt_threshold > 1.0) {
+		cerr << "ERROR: Probabilities should be between 0.0 and 1.0" << endl;
+		exit(1);
+	}
+
+	// Set up socket and connection info
 	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 	if (sockfd < 0) {
 		cerr << "ERROR: opening socket" << endl;
+		exit(1);
 	}
+
 	bzero((char*) &serv_addr, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;
+	inet_aton(hostname.c_str(), &serv_addr.sin_addr);
 	serv_addr.sin_port = htons(portno);
 
 	// Send initial request for the file
@@ -54,19 +60,16 @@ int main(int argc, char** argv) {
 
 	// Receive ACK from server
 	cout << "Receiving ACK for initial request" << endl;
-	message initial;
 	while (recvfrom(sockfd, &initial, sizeof(initial), 0,
 		(struct sockaddr*) &serv_addr, &len) == -1);
 
 	if (initial.seq_num == -1) {
 		cerr << "ERROR: File not found" << endl;
-		return -1;
+		exit(1);
 	}
 
-	int expected_packet_num = 0;
-
 	while (true) {
-		bzero(&msg, sizeof(message));
+		bzero(&msg, sizeof(Packet));
 		n = recvfrom(sockfd, &msg, sizeof(msg), 0,
 			(struct sockaddr*) &serv_addr, &len);
 		if (n <= 0) {
@@ -75,23 +78,20 @@ int main(int argc, char** argv) {
 
 		// Reliability simulation
 		// Packet Loss
-		double loss_prob = rand() / (double) RAND_MAX;
-		if (loss_prob < loss_threshold) {
-			cout << "Packet with seq_num: " << msg.seq_num << " and packet_num: " << msg.packet_num << " has been lost!" << endl;
+		if (isPacketBad(loss_threshold)) {
+			cout << "Packet with sequence number: " << msg.seq_num << " and packet number: " << msg.packet_num << " has been lost!" << endl;
 			continue;
 		}
 
 		// Packet Corruption
-		double corrupt_prob = rand() / (double) RAND_MAX;
-		if (corrupt_prob < corrupt_threshold) {
-			cout << "Packet with seq_num: " << msg.seq_num << " and packet_num: " << msg.packet_num << " has been corrupted!" << endl;
+		if (isPacketBad(corrupt_threshold)) {
+			cout << "Packet with sequence number: " << msg.seq_num << " and packet number: " << msg.packet_num << " has been corrupted!" << endl;
 			continue;
 		}
 
-		cout << "Received packet with seq_num: " << msg.seq_num << " and packet_num: " << msg.packet_num << endl;
+		cout << "Received packet with sequence number: " << msg.seq_num << " and packet number: " << msg.packet_num << endl;
 		
 		// Packet is received in order
-		message ack;
 		if (msg.packet_num == expected_packet_num) {
 			cout << "In order packet received" << endl;
 
@@ -100,16 +100,14 @@ int main(int argc, char** argv) {
 			for (unsigned int i = 0; i < msg.data_length; i++) {
 				data += msg.data[i];
 			}
-			messages.push_back(make_pair(data, msg.data_length));
+			packets.push_back(data);
 
 			// Make ACK packet
-			ack.type = false;
-			ack.packet_num = expected_packet_num;
-			seq += msg.data_length;
-			ack.seq_num = seq;
+			curr_seq_num += msg.data_length;
+			ack = createPacket(false, curr_seq_num, expected_packet_num);
 
 			// Send ACK packet
-			cout << "Sending ACK with seq_num: " << ack.seq_num << " and packet_num: " << ack.packet_num << endl; 
+			cout << "Sending ACK with sequence number: " << ack.seq_num << " and packet number: " << ack.packet_num << endl; 
 			sendto(sockfd, &ack, sizeof(ack), 0, 
 				(struct sockaddr*) &serv_addr, sizeof(serv_addr));
 
@@ -120,18 +118,16 @@ int main(int argc, char** argv) {
 				cout << "Last packet received" << endl;
 				break;
 			}
-
 		}
 		// Out-of-order packet
 		// Resend ACK for most recently received in-order packet
 		else {
 			cout << "Out of order packet received" << endl;
-			cout << "Expected: " << expected_packet_num << " Got: " << msg.packet_num << endl;
-			ack.type = false;
-			ack.seq_num = seq;
-			ack.packet_num = expected_packet_num - 1;
+			cout << "Expected packet number: " << expected_packet_num << " Got: " << msg.packet_num << endl;
 
-			cout << "Sending ACK with seq_num: " << ack.seq_num << " and packet_num: " << ack.packet_num << endl; 
+			ack = createPacket(false, curr_seq_num, expected_packet_num - 1);
+
+			cout << "Sending ACK with sequence number: " << ack.seq_num << " and packet number: " << ack.packet_num << endl; 
 
 			sendto(sockfd, &ack, sizeof(ack), 0, 
 				(struct sockaddr*) &serv_addr, sizeof(serv_addr));
@@ -140,26 +136,24 @@ int main(int argc, char** argv) {
 
 	// Send repeated ACK's to ensure that the server does not have last ACK dropped
 	// Continue to resend last packet even after client closes
-	message last;
-	last.seq_num = seq;
-	for (int i = 0; i < RESEND; i++) {
+	last = createPacket(false, curr_seq_num, expected_packet_num - 1);
+	for (int i = 0; i < DEFAULT; i++) {
 		sendto(sockfd, &last, sizeof(last), 0,
 			(struct sockaddr*) &serv_addr, sizeof(serv_addr));
 	}
 
 	// Write packet contents to file
 	ofstream output;
-	stringstream output_buffer; 
 	string output_filename = "received_" + filename;
+
 	output.open(output_filename.c_str(), ios::out | ios::binary);
-
 	if (!output.is_open()) {
-		cerr << "Could not open file" << endl;
+		cerr << "ERROR: Cannot open output file" << endl;
+		exit(1);
 	}
-	for (int i = 0; i < messages.size(); i++) {
-		output << messages[i].first;
-	}
-	output << output_buffer.rdbuf();
-	output.close();
 
+	for (int i = 0; i < packets.size(); i++) {
+		output << packets[i];
+	}
+	output.close();
 }

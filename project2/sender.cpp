@@ -16,7 +16,7 @@
 #include <iterator>
 #include <time.h>
 
-#include "common.h"
+#include "packet.h"
 
 using namespace std;
 
@@ -26,8 +26,8 @@ int main(int argc, char** argv) {
 	socklen_t len = sizeof(struct sockaddr_in);
 	string filename, line; 
 	char temp[100];
-	message initial, current;
-	vector<message> packets;
+	Packet initial, current;
+	vector<Packet> packets;
 	//vector<time_t> sent_times;
 	vector<timeval> sent_times;
 	unsigned char data[MAX_PACKET_SIZE - HEADER_SIZE];
@@ -156,6 +156,8 @@ int main(int argc, char** argv) {
 	}
 
 	while (true) {
+		if (base >= next_packet_num)
+			break;
 
 		// Check timeouts
 		timeval diff;
@@ -182,7 +184,7 @@ int main(int argc, char** argv) {
 		}
 
 		// Get a packet
-		message ack;
+		Packet ack;
 		n = recvfrom(sockfd, &ack, sizeof(ack), MSG_DONTWAIT,
 			(struct sockaddr*) &client_addr, &len);
 		if (n == 0) {
