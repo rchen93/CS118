@@ -114,6 +114,8 @@ int main(int argc, char** argv) {
 			ack.seq_num = seq;
 			ack.packet_num = expected_packet_num - 1;
 
+			cout << "Sending ACK with seq_num: " << ack.seq_num << " and packet_num: " << ack.packet_num << endl; 
+
 			sendto(sockfd, &ack, sizeof(ack), 0, 
 				(struct sockaddr*) &serv_addr, sizeof(serv_addr));
 		}
