@@ -196,12 +196,14 @@ int main(int argc, char** argv) {
 		}
 
 		// Reliability simulation
+		// Packet Loss
 		double loss_prob = rand() / (double) RAND_MAX;
 		if (loss_prob < loss_threshold) {
 			cout << "ACK with seq_num: " << ack.seq_num << " and packet_num: " << ack.packet_num << " has been lost!" << endl;
 			continue;
 		}
 
+		// Packet Corruption
 		double corrupt_prob = rand() / (double) RAND_MAX;
 		if (corrupt_prob < corrupt_threshold) {
 			cout << "ACK with seq_num: " << ack.seq_num << " and packet_num: " << ack.packet_num << " has been corrupted!" << endl;

@@ -24,16 +24,19 @@ int main(int argc, char** argv) {
 	string hostname, filename;
 	vector<pair<string,int> > messages;
 	message msg;
+	double loss_threshold, corrupt_threshold;
 
-	if (argc < 4) {
+	if (argc < 6) {
 		cerr << "Incorrect number of arguments" << endl;
-		cerr << "receiver <sender_hostname> <sender_portnumber> <filename>" << endl;
+		cerr << "receiver <sender_hostname> <sender_portnumber> <filename> <packet_loss_probability> <packet_corruption_probability>" << endl;
 		return -1;
 	}
 
 	hostname = argv[1];
 	portno = atoi(argv[2]);
 	filename = argv[3];
+	loss_threshold = atof(argv[4]);
+	corrupt_threshold = atof(argv[5]);
 
 	// Set socket and populate server address
 	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -66,12 +69,26 @@ int main(int argc, char** argv) {
 		bzero(&msg, sizeof(message));
 		n = recvfrom(sockfd, &msg, sizeof(msg), 0,
 			(struct sockaddr*) &serv_addr, &len);
-
 		if (n <= 0) {
 			continue;
 		}
-		cout << "Received packet with sequence Number: " << msg.seq_num << endl;
-		cout << "Received packet " << msg.packet_num << endl;
+
+		// Reliability simulation
+		// Packet Loss
+		double loss_prob = rand() / (double) RAND_MAX;
+		if (loss_prob < loss_threshold) {
+			cout << "Packet with seq_num: " << msg.seq_num << " and packet_num: " << msg.packet_num << " has been lost!" << endl;
+			continue;
+		}
+
+		// Packet Corruption
+		double corrupt_prob = rand() / (double) RAND_MAX;
+		if (corrupt_prob < corrupt_threshold) {
+			cout << "Packet with seq_num: " << msg.seq_num << " and packet_num: " << msg.packet_num << " has been corrupted!" << endl;
+			continue;
+		}
+
+		cout << "Received packet with seq_num: " << msg.seq_num << " and packet_num: " << msg.packet_num << endl;
 		
 		// Packet is received in order
 		message ack;
@@ -129,13 +146,6 @@ int main(int argc, char** argv) {
 		sendto(sockfd, &last, sizeof(last), 0,
 			(struct sockaddr*) &serv_addr, sizeof(serv_addr));
 	}
-
-	// cout << endl;
-	// cout << "Packets received" << endl;
-	// for (int i = 0; i < messages.size(); i++) {
-	// 	cout << "Packet " << i+1 << endl;
-	// 	cout << messages[i].first << endl << endl;
-	// }
 
 	// Write packet contents to file
 	ofstream output;
