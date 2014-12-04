@@ -2,6 +2,8 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <errno.h>
+#include <sys/fcntl.h>
 
 #include <iostream>
 #include <string>
@@ -16,17 +18,16 @@
 
 using namespace std;
 
-const int WINDOW_SIZE = 5;
-
 int main(int argc, char** argv) {
-	int sockfd, portno, n, seq_num = 0, counter = 0, packet_num = 0;
+	int sockfd, portno, n, cwnd, end, seq_num = 0, counter = 0, packet_num = 0;
 	struct sockaddr_in serv_addr, client_addr;
 	socklen_t len = sizeof(struct sockaddr_in);
 	string filename, line; 
 	char temp[100];
 	message initial, current;
 	vector<message> packets;
-	vector<unsigned char> buffer;
+	vector<time_t> sent_times;
+	unsigned char data[MAX_PACKET_SIZE - HEADER_SIZE];
 	
 	if (argc < 2) {
 		cerr << "ERROR: Incorrect number of arguments" << endl;
@@ -35,6 +36,8 @@ int main(int argc, char** argv) {
 	}
 
 	portno = atoi(argv[1]);
+	cwnd = WINDOW_SIZE;
+	end = (cwnd / DATA_SIZE) - 1;
 
 	// Set socket and populate server address
 	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -77,7 +80,7 @@ int main(int argc, char** argv) {
 			(struct sockaddr*) &client_addr, len);
 
 		//buffer = vector<unsigned char>((istreambuf_iterator<char>(request)), (istreambuf_iterator<char>()));
-		cout << "Buffer size: " << buffer.size() << endl;
+		//cout << "Buffer size: " << buffer.size() << endl;
 	} else {
 		initial.seq_num = -1;
 
@@ -102,7 +105,7 @@ int main(int argc, char** argv) {
 		current.data[counter] = c;
 		data_length++;
 		if (counter == DATA_SIZE - 1) {
-			cout << "Packet has MAX_PACKET_SIZE" << endl;
+			// cout << "Packet has MAX_PACKET_SIZE" << endl;
 			current.seq_num = seq_num;
 			current.packet_num = packet_num;
 			current.data_length = data_length;
@@ -115,23 +118,6 @@ int main(int argc, char** argv) {
 		}
 		counter++; 
 	}
-	// for (int i = 0; i < buffer.size(); i++) {
-	// 	current.data[counter] = buffer[i];
-	// 	data_length++;
-	// 	if (counter == DATA_SIZE - 1) {
-	// 		cout << "Packet has MAX_PACKET_SIZE" << endl;
-	// 		current.seq_num = seq_num;
-	// 		current.packet_num = packet_num;
-	// 		current.data_length = data_length;
-	// 		packets.push_back(current);
-
-	// 		counter = -1;
-	// 		data_length = 0;
-	// 		seq_num += MAX_PACKET_SIZE;
-	// 		packet_num++;
-	// 	}
-	// 	counter++; 
-	// }
 
 	cout << "Counter: " << counter << endl;
 	if (counter != 0) {
@@ -148,46 +134,82 @@ int main(int argc, char** argv) {
 		packets[packets.size() - 1].last_packet = true;
 	}
 
-	for (int i = 0; i < packets.size(); i++) {
-		// cout << "Packet num: " << packets[i].packet_num << endl;
-		sendto(sockfd, &packets[i], sizeof(packets[i]), 0,
-			(struct sockaddr*) &client_addr, len);
-	}
+	int base = 0;
+	int next_packet_num = 0;
 
-	// int base = 0;
-	// int next_packet_num = base + WINDOW_SIZE;
+	// Send all initial packets
+	cout << "Sending initial packets" << endl;
 
-	cout << "Number of packets: " << packets.size() << endl;
-	// Send initial packets up to window size
-	for (int i = 0; i < packets.size(); i++) {
-		sendto(sockfd, &packets[i], sizeof(packets[i]), 0,
+	for (next_packet_num; next_packet_num <= end && next_packet_num < packets.size(); next_packet_num++) {
+		cout << "Next_packet_num " << next_packet_num << endl;
+		sendto(sockfd, &packets[next_packet_num], sizeof(packets[next_packet_num]), 0,
 			(struct sockaddr*) &client_addr, len);
+
+		sent_times.push_back(time(NULL));
 	}
 
 	while (true) {
+		if (base == next_packet_num)
+			break;
+
+		// Check timeouts
+		double diff = difftime(time(NULL), sent_times[0]);
+		cout << "Difference: " << diff << endl;
+		if (diff > PACKET_TIMEOUT) {
+			cout << "Timeout for packet " << base << endl;
+			// Resend all packets in window
+			sent_times.clear();
+			for (int i = base; i < next_packet_num && i < packets.size(); i++) {
+				cout << "Resending packet " << i << endl;
+				sendto(sockfd, &packets[i], sizeof(packets[i]), 0,
+					(struct sockaddr*) &client_addr, len);
+
+				sent_times.push_back(time(NULL));
+			}
+			continue;
+		}
+
 		// Get a packet
-		message received;
-		n = recvfrom(sockfd, &received, sizeof(received), 0,
+		message ack;
+		n = recvfrom(sockfd, &ack, sizeof(ack), O_NONBLOCK,
 			(struct sockaddr*) &client_addr, &len);
-		if (n == 0)
+		if (n == 0) {
 			continue;	// No more messages
-		else if (n < 0)
+		}
+		else if (n < 0) {
+			if (errno == EAGAIN || errno == EWOULDBLOCK) {
+				continue;	// No messages immediately available
+			}
 			break;	// Error
+		}
 
 
 		// TODO: Check corruption and randomly drop packets
 
-		cout << "Received ACK " << received.seq_num << endl;
+		cout << "Received ACK with seq_num: " << ack.seq_num << " and packet_num: " << ack.packet_num << endl;
 
-		// if (received.packet_num >= base) {
-		// 	// Send up to window size
-		// 	base = received.packet_num + 1;
-		// 	for (int i = next_packet_num; i < base + WINDOW_SIZE && i < packets.size(); i++) {
-		// 		sendto(sockfd, &packets[i], sizeof(packets[i]), 0,
-		// 			(struct sockaddr*) &client_addr, len);
-		// 	}
-		// 	next_packet_num = base + WINDOW_SIZE;
-		// }
+		if (ack.packet_num == base) {
+			cout << "Old base: " << base << endl;
+			cout << "Old end: " << end << endl;
+			base = ack.packet_num + 1;
+			end++; 
+			cout << "New base: " << base << endl;
+			cout << "New end: " << end << endl;
+
+			for (next_packet_num; next_packet_num <= end && next_packet_num < packets.size(); next_packet_num++) {
+				cout << "Sending packet: " << next_packet_num << endl;
+
+				sendto(sockfd, &packets[next_packet_num], sizeof(packets[next_packet_num]), 0,
+					(struct sockaddr*) &client_addr, len);
+
+				sent_times.erase(sent_times.begin());
+				time_t curr = time(NULL);
+				sent_times.push_back(curr);
+			}
+
+			if (next_packet_num >= packets.size())
+				next_packet_num = packets.size();
+		} 
 	}
 	
 }

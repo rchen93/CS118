@@ -92,6 +92,7 @@ int main(int argc, char** argv) {
 			ack.seq_num = seq;
 
 			// Send ACK packet
+			cout << "Sending ACK with seq_num: " << ack.seq_num << " and packet_num: " << ack.packet_num << endl; 
 			sendto(sockfd, &ack, sizeof(ack), 0, 
 				(struct sockaddr*) &serv_addr, sizeof(serv_addr));
 
@@ -111,7 +112,7 @@ int main(int argc, char** argv) {
 			cout << "Expected: " << expected_packet_num << " Got: " << msg.packet_num << endl;
 			ack.type = false;
 			ack.seq_num = seq;
-			ack.packet_num = expected_packet_num;
+			ack.packet_num = expected_packet_num - 1;
 
 			sendto(sockfd, &ack, sizeof(ack), 0, 
 				(struct sockaddr*) &serv_addr, sizeof(serv_addr));
@@ -143,7 +144,6 @@ int main(int argc, char** argv) {
 	if (!output.is_open()) {
 		cerr << "Could not open file" << endl;
 	}
-	
 	for (int i = 0; i < messages.size(); i++) {
 		output << messages[i].first;
 	}
