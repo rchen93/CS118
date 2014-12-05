@@ -174,7 +174,7 @@ int main(int argc, char** argv) {
 
 			// Resend all packets in window
 			sent_times.clear();
-			for (int i = base; i <= next_packet_num && i < packets.size(); i++) {
+			for (int i = base; i < next_packet_num && i < packets.size(); i++) {
 				cout << "Resending packet " << i << endl;
 				sendto(sockfd, &packets[i], sizeof(packets[i]), 0,
 					(struct sockaddr*) &client_addr, len);
