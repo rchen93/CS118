@@ -15,6 +15,16 @@
 
 using namespace std;
 
+/*
+  This function returns the current time as a string, which is used
+  for the Date: header field.
+*/
+string getCurrentTime() {
+  time_t raw_current_time = time(0);
+  string curr_time(ctime(&raw_current_time));
+  return curr_time;
+}
+
 int main(int argc, char** argv) {
 	int sockfd, portno, n, curr_seq_num = 0, expected_packet_num = 0;
 	struct sockaddr_in serv_addr;
@@ -54,12 +64,12 @@ int main(int argc, char** argv) {
 	serv_addr.sin_port = htons(portno);
 
 	// Send initial request for the file
-	cout << "Sending initial request for file: " << filename.c_str() << endl;
+	cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Sending initial request for file " << filename.c_str() << endl << endl;
 	n = sendto(sockfd, filename.c_str(), filename.size(), 0,
 		(struct sockaddr*) &serv_addr, len);
 
 	// Receive ACK from server
-	cout << "Receiving ACK for initial request" << endl;
+	cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Receiving ACK for initial request" << endl << endl;
 	while (recvfrom(sockfd, &initial, sizeof(initial), 0,
 		(struct sockaddr*) &serv_addr, &len) == -1);
 
@@ -79,21 +89,21 @@ int main(int argc, char** argv) {
 		// Reliability simulation
 		// Packet Loss
 		if (isPacketBad(loss_threshold)) {
-			cout << "Packet with sequence number: " << msg.seq_num << " and packet number: " << msg.packet_num << " has been lost!" << endl;
+			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Packet with sequence number " << msg.seq_num << " and packet number " << msg.packet_num << " has been lost!" << endl << endl;
 			continue;
 		}
 
 		// Packet Corruption
 		if (isPacketBad(corrupt_threshold)) {
-			cout << "Packet with sequence number: " << msg.seq_num << " and packet number: " << msg.packet_num << " has been corrupted!" << endl;
+			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Packet with sequence number " << msg.seq_num << " and packet number " << msg.packet_num << " has been corrupted!" << endl << endl;
 			continue;
 		}
 
-		cout << "Received packet with sequence number: " << msg.seq_num << " and packet number: " << msg.packet_num << endl;
+		cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Received packet with sequence number " << msg.seq_num << " and packet number " << msg.packet_num << endl << endl;
 		
 		// Packet is received in order
 		if (msg.packet_num == expected_packet_num) {
-			cout << "In order packet received" << endl;
+			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "In order packet received" << endl << endl;
 
 			// Extract 
 			string data;
@@ -107,7 +117,7 @@ int main(int argc, char** argv) {
 			ack = createPacket(false, curr_seq_num, expected_packet_num);
 
 			// Send ACK packet
-			cout << "Sending ACK with sequence number: " << ack.seq_num << " and packet number: " << ack.packet_num << endl; 
+			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Sending ACK with sequence number " << ack.seq_num << " and packet number " << ack.packet_num << endl << endl; 
 			sendto(sockfd, &ack, sizeof(ack), 0, 
 				(struct sockaddr*) &serv_addr, sizeof(serv_addr));
 
@@ -115,18 +125,18 @@ int main(int argc, char** argv) {
 			expected_packet_num++;
 
 			if (msg.last_packet) {
-				cout << "Last packet received" << endl;
+				cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Last packet received" << endl << endl;
 				break;
 			}
 		}
 		// Out-of-order packet
 		else {
-			cout << "Out of order packet received" << endl;
-			cout << "Expected packet number: " << expected_packet_num << " Got: " << msg.packet_num << endl;
+			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Out of order packet received" << endl << endl;
+			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Expected packet number " << expected_packet_num << " Got " << msg.packet_num << endl << endl;
 
 			ack = createPacket(false, curr_seq_num, expected_packet_num - 1);
 
-			cout << "Sending ACK with sequence number: " << ack.seq_num << " and packet number: " << ack.packet_num << endl; 
+			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Sending ACK with sequence number " << ack.seq_num << " and packet number " << ack.packet_num << endl << endl; 
 
 			// Resend ACK for most recently received in-order packet
 			sendto(sockfd, &ack, sizeof(ack), 0, 

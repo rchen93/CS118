@@ -30,6 +30,16 @@ bool isTimeout(timeval curr, timeval old) {
 	return (diff.tv_sec != 0) || ((diff.tv_usec / 1000) > PACKET_TIMEOUT);
 }
 
+/*
+  This function returns the current time as a string, which is used
+  for the Date: header field.
+*/
+string getCurrentTime() {
+  time_t raw_current_time = time(0);
+  string curr_time(ctime(&raw_current_time));
+  return curr_time;
+}
+
 int main(int argc, char** argv) {
 	int sockfd, portno, n, cwnd, end, seq_num = 0, counter = 0, packet_num = 0;
 	struct sockaddr_in serv_addr, client_addr;
@@ -83,7 +93,7 @@ int main(int argc, char** argv) {
 		filename += temp[i];
 	}
 
-	cout << "Requested File: " << filename << endl;
+	cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Requested File " << filename << endl << endl;
 
 	ifstream request(filename.c_str(), ios::in | ios::binary);
 
@@ -154,7 +164,7 @@ int main(int argc, char** argv) {
 	int next_packet_num = 0;
 
 	// Send all initial packets
-	cout << "Sending initial packets up to window" << endl;
+	cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Sending initial packets up to window" << endl << endl;
 
 	for (next_packet_num; next_packet_num <= end && next_packet_num < packets.size(); next_packet_num++) {
 		sendto(sockfd, &packets[next_packet_num], sizeof(packets[next_packet_num]), 0,
@@ -170,12 +180,12 @@ int main(int argc, char** argv) {
 
 		// Check timeouts
 		if (isTimeout(curr, old)) {
-			cout << "Timeout for packet " << base << endl;
+			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Timeout for packet " << base << endl << endl;
 
 			// Resend all packets in window
 			sent_times.clear();
 			for (int i = base; i < next_packet_num && i < packets.size(); i++) {
-				cout << "Resending packet " << i << endl;
+				cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Resending packet " << i << endl << endl;
 				sendto(sockfd, &packets[i], sizeof(packets[i]), 0,
 					(struct sockaddr*) &client_addr, len);
 
@@ -202,17 +212,17 @@ int main(int argc, char** argv) {
 		// Reliability simulation
 		// Packet Loss
 		if (isPacketBad(loss_threshold)) {
-			cout << "ACK with sequence number: " << ack.seq_num << " and packet number: " << ack.packet_num << " has been lost!" << endl;
+			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "ACK with sequence number " << ack.seq_num << " and packet number " << ack.packet_num << " has been lost!" << endl << endl;
 			continue;
 		}
 
 		// Packet Corruption
 		if (isPacketBad(corrupt_threshold)) {
-			cout << "ACK with sequence number: " << ack.seq_num << " and packet number: " << ack.packet_num << " has been corrupted!" << endl;
+			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "ACK with sequence number " << ack.seq_num << " and packet number " << ack.packet_num << " has been corrupted!" << endl << endl;
 			continue;
 		}
 
-		cout << "Received ACK with sequence number: " << ack.seq_num << " and packet number: " << ack.packet_num << endl;
+		cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Received ACK with sequence number " << ack.seq_num << " and packet number " << ack.packet_num << endl << endl;
 
 		// All ACKS received
 		if (ack.packet_num == packets.size() - 1)
@@ -225,7 +235,7 @@ int main(int argc, char** argv) {
 			end++; 
 
 			for (next_packet_num; next_packet_num <= end && next_packet_num < packets.size(); next_packet_num++) {
-				cout << "Sending packet: " << next_packet_num << endl;
+				cout << "TIMESTAMP: " << "EVENT: " << getCurrentTime() << "Sending packet " << next_packet_num << endl << endl;
 
 				sendto(sockfd, &packets[next_packet_num], sizeof(packets[next_packet_num]), 0,
 					(struct sockaddr*) &client_addr, len);
