@@ -202,17 +202,17 @@ int main(int argc, char** argv) {
 		// Reliability simulation
 		// Packet Loss
 		if (isPacketBad(loss_threshold)) {
-			cout << "ACK with seq_num: " << ack.seq_num << " and packet_num: " << ack.packet_num << " has been lost!" << endl;
+			cout << "ACK with sequence number: " << ack.seq_num << " and packet number: " << ack.packet_num << " has been lost!" << endl;
 			continue;
 		}
 
 		// Packet Corruption
 		if (isPacketBad(corrupt_threshold)) {
-			cout << "ACK with seq_num: " << ack.seq_num << " and packet_num: " << ack.packet_num << " has been corrupted!" << endl;
+			cout << "ACK with sequence number: " << ack.seq_num << " and packet number: " << ack.packet_num << " has been corrupted!" << endl;
 			continue;
 		}
 
-		cout << "Received ACK with seq_num: " << ack.seq_num << " and packet_num: " << ack.packet_num << endl;
+		cout << "Received ACK with sequence number: " << ack.seq_num << " and packet number: " << ack.packet_num << endl;
 
 		// All ACKS received
 		if (ack.packet_num == packets.size() - 1)
@@ -220,12 +220,9 @@ int main(int argc, char** argv) {
 
 		// Slide the window upon successful cum ACK
 		if (ack.packet_num >= base) {
-			cout << "Old base: " << base << endl;
-			cout << "Old end: " << end << endl;
+
 			base = ack.packet_num + 1;
 			end++; 
-			cout << "New base: " << base << endl;
-			cout << "New end: " << end << endl;
 
 			for (next_packet_num; next_packet_num <= end && next_packet_num < packets.size(); next_packet_num++) {
 				cout << "Sending packet: " << next_packet_num << endl;

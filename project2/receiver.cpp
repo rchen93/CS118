@@ -120,7 +120,6 @@ int main(int argc, char** argv) {
 			}
 		}
 		// Out-of-order packet
-		// Resend ACK for most recently received in-order packet
 		else {
 			cout << "Out of order packet received" << endl;
 			cout << "Expected packet number: " << expected_packet_num << " Got: " << msg.packet_num << endl;
@@ -129,6 +128,7 @@ int main(int argc, char** argv) {
 
 			cout << "Sending ACK with sequence number: " << ack.seq_num << " and packet number: " << ack.packet_num << endl; 
 
+			// Resend ACK for most recently received in-order packet
 			sendto(sockfd, &ack, sizeof(ack), 0, 
 				(struct sockaddr*) &serv_addr, sizeof(serv_addr));
 		}

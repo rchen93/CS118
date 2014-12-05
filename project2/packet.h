@@ -9,7 +9,7 @@ const int DEFAULT = 10;
 
 
 struct Packet {
-	bool type;		// True for packet, false for ACK
+	bool type;		// True for message, false for ACK
 	bool last_packet;	// True if it is last packet
 	int seq_num;
 	int packet_num;
