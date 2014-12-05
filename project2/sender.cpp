@@ -60,7 +60,8 @@ int main(int argc, char** argv) {
 
 	portno = atoi(argv[1]);
 	cwnd = atoi(argv[2]);
-	end = (cwnd / DATA_SIZE) - 1;
+	end = (cwnd / MAX_PACKET_SIZE) - 1;
+	cout << "Cwnd: " << cwnd << " MAX_PACKET_SIZE: " << MAX_PACKET_SIZE << " Divided: " << (cwnd / MAX_PACKET_SIZE) << endl; 
 	loss_threshold = atof(argv[3]);
 	corrupt_threshold = atof(argv[4]);
 
@@ -130,7 +131,8 @@ int main(int argc, char** argv) {
 		current.data[counter] = c;
 		data_length++;
 
-		if (counter == DATA_SIZE - 1) {
+		if (counter == MAX_PACKET_SIZE - 2) {
+			current.data[MAX_PACKET_SIZE - 1] = '\0';
 			current.seq_num = seq_num;
 			current.packet_num = packet_num;
 
@@ -141,7 +143,7 @@ int main(int argc, char** argv) {
 
 			counter = -1;
 			data_length = 0;
-			seq_num += DATA_SIZE;
+			seq_num += MAX_PACKET_SIZE;
 			packet_num++;
 		}
 		counter++; 
@@ -156,7 +158,6 @@ int main(int argc, char** argv) {
 		packets.push_back(current);
 		packet_num++;
 	} else {
-		packets[packets.size() - 1].data[DATA_SIZE - 1] = '\0';
 		packets[packets.size() - 1].last_packet = true;
 	}
 
@@ -164,9 +165,13 @@ int main(int argc, char** argv) {
 	int next_packet_num = 0;
 
 	// Send all initial packets
-	cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Sending initial packets up to window" << endl << endl;
+	cout << "Original end: " << end << endl; 
+	cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Sending initial packets up to window" << endl;
 
 	for (next_packet_num; next_packet_num <= end && next_packet_num < packets.size(); next_packet_num++) {
+		cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Sending packet with sequence number ";
+		cout << packets[next_packet_num].seq_num << " and packet number " << packets[next_packet_num].packet_num << endl;
+		
 		sendto(sockfd, &packets[next_packet_num], sizeof(packets[next_packet_num]), 0,
 			(struct sockaddr*) &client_addr, len);
 
@@ -180,18 +185,23 @@ int main(int argc, char** argv) {
 
 		// Check timeouts
 		if (isTimeout(curr, old)) {
-			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Timeout for packet " << base << endl << endl;
+			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Timeout for packet " << base << endl;
+			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: Retransmission" << endl;
 
 			// Resend all packets in window
 			sent_times.clear();
+			cout << "Base: " << base << " Next_packet_num: " << next_packet_num << endl;
 			for (int i = base; i < next_packet_num && i < packets.size(); i++) {
-				cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Resending packet " << i << endl << endl;
+				cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Resending packet with sequence number ";
+				cout << packets[i].seq_num << " and packet number " << packets[i].packet_num << endl;
+
 				sendto(sockfd, &packets[i], sizeof(packets[i]), 0,
 					(struct sockaddr*) &client_addr, len);
 
 				gettimeofday(&curr, NULL);
 				sent_times.push_back(curr);
 			}
+			cout << endl;
 			continue;
 		}
 
@@ -231,11 +241,16 @@ int main(int argc, char** argv) {
 		// Slide the window upon successful cum ACK
 		if (ack.packet_num >= base) {
 
+			cout << "Old base: " << base << endl;
+			cout << "Old end: " << end << endl;
 			base = ack.packet_num + 1;
-			end++; 
+			end = base + (cwnd/MAX_PACKET_SIZE) - 1; 
+			cout << "New base: " << base << endl;
+			cout << "New end: " << end << endl;
 
 			for (next_packet_num; next_packet_num <= end && next_packet_num < packets.size(); next_packet_num++) {
-				cout << "TIMESTAMP: " << "EVENT: " << getCurrentTime() << "Sending packet " << next_packet_num << endl << endl;
+				cout << "TIMESTAMP: " << "EVENT: " << getCurrentTime() << "Sending packet with sequence number ";
+				cout << packets[next_packet_num].seq_num << " and packet number " << packets[next_packet_num].packet_num << endl << endl;
 
 				sendto(sockfd, &packets[next_packet_num], sizeof(packets[next_packet_num]), 0,
 					(struct sockaddr*) &client_addr, len);
