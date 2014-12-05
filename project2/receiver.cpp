@@ -2,6 +2,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <netdb.h>    // gethostbyname()
 
 #include <iostream>
 #include <vector>
@@ -51,6 +52,12 @@ int main(int argc, char** argv) {
 		exit(1);
 	}
 
+	struct hostent *server = gethostbyname(hostname.c_str());
+	if (!server) {
+		cerr << "ERROR: Hostname lookup failed" << endl;
+		exit(1);
+	}
+
 	// Set up socket and connection info
 	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 	if (sockfd < 0) {
@@ -60,7 +67,7 @@ int main(int argc, char** argv) {
 
 	bzero((char*) &serv_addr, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;
-	inet_aton(hostname.c_str(), &serv_addr.sin_addr);
+	inet_pton(AF_INET, server->h_addr_list[0], &(serv_addr.sin_addr));
 	serv_addr.sin_port = htons(portno);
 
 	// Send initial request for the file
@@ -82,6 +89,7 @@ int main(int argc, char** argv) {
 		bzero(&msg, sizeof(Packet));
 		n = recvfrom(sockfd, &msg, sizeof(msg), 0,
 			(struct sockaddr*) &serv_addr, &len);
+
 		if (n <= 0) {
 			continue;
 		}
@@ -99,17 +107,17 @@ int main(int argc, char** argv) {
 			continue;
 		}
 
-		cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Received packet with sequence number " << msg.seq_num << " and packet number " << msg.packet_num << endl << endl;
-		
 		// Packet is received in order
 		if (msg.packet_num == expected_packet_num) {
-			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "In order packet received" << endl << endl;
+			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "In order packet received with sequence number " << msg.seq_num;
+			cout << " and packet number " << msg.packet_num << endl << endl;
 
 			// Extract 
 			string data;
 			for (unsigned int i = 0; i < msg.data_length; i++) {
 				data += msg.data[i];
 			}
+
 			packets.push_back(data);
 
 			// Make ACK packet
@@ -125,14 +133,14 @@ int main(int argc, char** argv) {
 			expected_packet_num++;
 
 			if (msg.last_packet) {
-				cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Last packet received" << endl << endl;
+				// cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Last packet received" << endl << endl;
 				break;
 			}
 		}
 		// Out-of-order packet
 		else {
-			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Out of order packet received" << endl << endl;
-			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Expected packet number " << expected_packet_num << " Got " << msg.packet_num << endl << endl;
+			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Out of order packet received with sequence number " << msg.seq_num; 
+			cout << " and packet number " << msg.packet_num << endl << endl;
 
 			ack = createPacket(false, curr_seq_num, expected_packet_num - 1);
 
@@ -163,7 +171,9 @@ int main(int argc, char** argv) {
 	}
 
 	for (int i = 0; i < packets.size(); i++) {
+		//cout << packets[i] << endl;
 		output << packets[i];
 	}
+
 	output.close();
 }

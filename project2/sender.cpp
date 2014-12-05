@@ -27,7 +27,9 @@ bool isTimeout(timeval curr, timeval old) {
 
 	timersub(&curr, &old, &diff);
 
-	return (diff.tv_sec != 0) || ((diff.tv_usec / 1000) > PACKET_TIMEOUT);
+	// cout << "Diff sec: " << diff.tv_sec << " Diff u_sec: " << diff.tv_usec << " ms: " << (diff.tv_usec/ 1000) << endl;
+
+	return ((diff.tv_sec != 0) || (diff.tv_usec > (PACKET_TIMEOUT * 1000)));
 }
 
 /*
@@ -61,7 +63,7 @@ int main(int argc, char** argv) {
 	portno = atoi(argv[1]);
 	cwnd = atoi(argv[2]);
 	end = (cwnd / MAX_PACKET_SIZE) - 1;
-	cout << "Cwnd: " << cwnd << " MAX_PACKET_SIZE: " << MAX_PACKET_SIZE << " Divided: " << (cwnd / MAX_PACKET_SIZE) << endl; 
+
 	loss_threshold = atof(argv[3]);
 	corrupt_threshold = atof(argv[4]);
 
@@ -131,8 +133,7 @@ int main(int argc, char** argv) {
 		current.data[counter] = c;
 		data_length++;
 
-		if (counter == MAX_PACKET_SIZE - 2) {
-			current.data[MAX_PACKET_SIZE - 1] = '\0';
+		if (counter == MAX_PACKET_SIZE - 1) {
 			current.seq_num = seq_num;
 			current.packet_num = packet_num;
 
