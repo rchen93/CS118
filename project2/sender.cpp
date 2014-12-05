@@ -13,31 +13,39 @@
 #include <fstream>
 #include <sstream> 
 #include <stdlib.h>
-#include <iterator>
 #include <time.h>
 
 #include "packet.h"
 
 using namespace std;
 
+/*
+	This function determines if the packet times out. 
+*/
+bool isTimeout(timeval curr, timeval old) {
+	timeval diff;
+
+	timersub(&curr, &old, &diff);
+
+	return (diff.tv_sec != 0) || ((diff.tv_usec / 1000) > PACKET_TIMEOUT);
+}
+
 int main(int argc, char** argv) {
 	int sockfd, portno, n, cwnd, end, seq_num = 0, counter = 0, packet_num = 0;
 	struct sockaddr_in serv_addr, client_addr;
-	socklen_t len = sizeof(struct sockaddr_in);
+	socklen_t len = sizeof(client_addr);
 	string filename, line; 
 	char temp[100];
 	Packet initial, current;
 	vector<Packet> packets;
-	//vector<time_t> sent_times;
 	vector<timeval> sent_times;
-	unsigned char data[MAX_PACKET_SIZE - HEADER_SIZE];
 	double loss_threshold, corrupt_threshold;
 	timeval curr;
 	
 	if (argc < 5) {
 		cerr << "ERROR: Incorrect number of arguments" << endl;
 		cerr << "sender <portnumber> <window_size> <packet_loss_probability> <packet_corruption_probability>" << endl;
-		return -1;
+		exit(1);
 	}
 
 	portno = atoi(argv[1]);
@@ -45,6 +53,11 @@ int main(int argc, char** argv) {
 	end = (cwnd / DATA_SIZE) - 1;
 	loss_threshold = atof(argv[3]);
 	corrupt_threshold = atof(argv[4]);
+
+	if (loss_threshold < 0.0 || loss_threshold > 1.0 || corrupt_threshold < 0.0 || corrupt_threshold > 1.0) {
+		cerr << "ERROR: Probabilities should be between 0.0 and 1.0" << endl;
+		exit(1);
+	}
 
 	// Set socket and populate server address
 	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -56,7 +69,7 @@ int main(int argc, char** argv) {
 	// Bind server to socket
 	if (bind(sockfd, (struct sockaddr*) &serv_addr, len) == -1) {
 		cerr << "ERROR: Failed to bind socket" << endl; 
-		return -1;
+		exit(1);
 	}
 
 	// Get file request
@@ -70,35 +83,32 @@ int main(int argc, char** argv) {
 		filename += temp[i];
 	}
 
-	cout << "Filename: " << filename << endl;
-
-	// Create initial ACK for file request
-	initial.type = false;
-	initial.packet_num = packet_num; 
-	initial.last_packet = true;
+	cout << "Requested File: " << filename << endl;
 
 	ifstream request(filename.c_str(), ios::in | ios::binary);
 
 	if (request) {
-		initial.seq_num = seq_num;
+		initial = createPacket(false, seq_num, packet_num);
+		initial.last_packet = true;
 
 		// Send ACK with initial seq number 0 confirming valid file
 		sendto(sockfd, &initial, sizeof(initial), 0,
 			(struct sockaddr*) &client_addr, len);
 
 	} else {
-		initial.seq_num = -1;
+		initial = createPacket(false, -1, packet_num);
+		initial.last_packet = true;
 
 		// Send ACK with initial seq number -1 confirming invalid file
 		sendto(sockfd, &initial, sizeof(initial), 0,
 			(struct sockaddr*) &client_addr, len);
 
 		cerr << "ERROR: File not found" << endl;
-		return -1;
+		exit(1);
 	}
 
-	current.last_packet = false;
-	current.type = true;
+	current = createPacket(true, seq_num, packet_num);
+
 	int data_length = 0;
 
 	// Split data into packets
@@ -109,11 +119,14 @@ int main(int argc, char** argv) {
 		}
 		current.data[counter] = c;
 		data_length++;
+
 		if (counter == DATA_SIZE - 1) {
-			// cout << "Packet has MAX_PACKET_SIZE" << endl;
 			current.seq_num = seq_num;
 			current.packet_num = packet_num;
+
+			current.last_packet = false;
 			current.data_length = data_length;
+
 			packets.push_back(current);
 
 			counter = -1;
@@ -124,9 +137,7 @@ int main(int argc, char** argv) {
 		counter++; 
 	}
 
-	cout << "Counter: " << counter << endl;
 	if (counter != 0) {
-		cout << "Last packet is smaller than max packet size" << endl;
 		current.data[counter] = '\0';
 		current.seq_num = seq_num;
 		current.packet_num = packet_num;
@@ -143,47 +154,38 @@ int main(int argc, char** argv) {
 	int next_packet_num = 0;
 
 	// Send all initial packets
-	cout << "Sending initial packets" << endl;
+	cout << "Sending initial packets up to window" << endl;
 
 	for (next_packet_num; next_packet_num <= end && next_packet_num < packets.size(); next_packet_num++) {
-		// cout << "Next_packet_num " << next_packet_num << endl;
 		sendto(sockfd, &packets[next_packet_num], sizeof(packets[next_packet_num]), 0,
 			(struct sockaddr*) &client_addr, len);
 
 		gettimeofday(&curr, NULL);
-		//cout << "Time: " << curr.tv_sec << " " << curr.tv_usec << endl;
 		sent_times.push_back(curr);
 	}
 
 	while (true) {
-		if (base >= next_packet_num)
-			break;
-
-		// Check timeouts
-		timeval diff;
 		gettimeofday(&curr, NULL);
 		timeval old = sent_times[0];
-		timersub(&curr, &old, &diff);
-		// cout << "Diff: " << diff.tv_sec << " " << diff.tv_usec << endl;
-		if (diff.tv_sec != 0 || (diff.tv_usec / 1000) > PACKET_TIMEOUT) {
+
+		// Check timeouts
+		if (isTimeout(curr, old)) {
 			cout << "Timeout for packet " << base << endl;
+
 			// Resend all packets in window
 			sent_times.clear();
-			cout << "End: " << next_packet_num << endl;
 			for (int i = base; i <= next_packet_num && i < packets.size(); i++) {
 				cout << "Resending packet " << i << endl;
 				sendto(sockfd, &packets[i], sizeof(packets[i]), 0,
 					(struct sockaddr*) &client_addr, len);
 
 				gettimeofday(&curr, NULL);
-				//cout << "Time: " << curr.tv_sec << " " << curr.tv_usec << endl;
 				sent_times.push_back(curr);
-
 			}
 			continue;
 		}
 
-		// Get a packet
+		// Get ACK
 		Packet ack;
 		n = recvfrom(sockfd, &ack, sizeof(ack), MSG_DONTWAIT,
 			(struct sockaddr*) &client_addr, &len);
@@ -199,21 +201,24 @@ int main(int argc, char** argv) {
 
 		// Reliability simulation
 		// Packet Loss
-		double loss_prob = rand() / (double) RAND_MAX;
-		if (loss_prob < loss_threshold) {
+		if (isPacketBad(loss_threshold)) {
 			cout << "ACK with seq_num: " << ack.seq_num << " and packet_num: " << ack.packet_num << " has been lost!" << endl;
 			continue;
 		}
 
 		// Packet Corruption
-		double corrupt_prob = rand() / (double) RAND_MAX;
-		if (corrupt_prob < corrupt_threshold) {
+		if (isPacketBad(corrupt_threshold)) {
 			cout << "ACK with seq_num: " << ack.seq_num << " and packet_num: " << ack.packet_num << " has been corrupted!" << endl;
 			continue;
 		}
 
 		cout << "Received ACK with seq_num: " << ack.seq_num << " and packet_num: " << ack.packet_num << endl;
 
+		// All ACKS received
+		if (ack.packet_num == packets.size() - 1)
+				break;
+
+		// Slide the window upon successful cum ACK
 		if (ack.packet_num >= base) {
 			cout << "Old base: " << base << endl;
 			cout << "Old end: " << end << endl;
@@ -230,13 +235,10 @@ int main(int argc, char** argv) {
 
 				sent_times.erase(sent_times.begin());
 				gettimeofday(&curr, NULL);
-				//cout << "Time: " << curr.tv_sec << " " << curr.tv_usec << endl;
 				sent_times.push_back(curr);
 			}
+		}
 
-			if (next_packet_num >= packets.size())
-				next_packet_num = packets.size();
-		} 
 	}
 	
 }
