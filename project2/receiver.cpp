@@ -97,14 +97,14 @@ int main(int argc, char** argv) {
 		// Reliability simulation
 		// Packet Loss
 		if (isPacketBad(loss_threshold)) {
-			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Packet with sequence number " << msg.seq_num << endl << endl;
+			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Packet with sequence number " << msg.seq_num << " has been lost!" << endl << endl;
 			//cout << " and packet number " << msg.packet_num << " has been lost!" << endl << endl;
 			continue;
 		}
 
 		// Packet Corruption
 		if (isPacketBad(corrupt_threshold)) {
-			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Packet with sequence number " << msg.seq_num << endl << endl;
+			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Packet with sequence number " << msg.seq_num << " has been corrupted!" << endl << endl;
 			//cout << " and packet number " << msg.packet_num << " has been corrupted!" << endl << endl;
 			continue;
 		}
