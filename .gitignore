@@ -1,11 +1,11 @@
-*.o
+**/*.o
 
-.DS_Store
+**/.DS_Store
 
-serverFork
+**/serverFork
 
-client
+**/client
 
-receiver
-sender
-received_*
+**/receiver
+**/sender
+**/received_*

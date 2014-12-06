@@ -4,7 +4,7 @@
 #include <sys/types.h>
 #include <errno.h>
 #include <sys/fcntl.h>
-#include <sys/time.h>
+#include <sys/time.h>		// gettimeofday()
 
 #include <iostream>
 #include <string>
@@ -171,7 +171,7 @@ int main(int argc, char** argv) {
 
 	for (next_packet_num; next_packet_num <= end && next_packet_num < packets.size(); next_packet_num++) {
 		cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Sending packet with sequence number ";
-		cout << packets[next_packet_num].seq_num << " and packet number " << packets[next_packet_num].packet_num << endl;
+		cout << packets[next_packet_num].seq_num << endl; //<< " and packet number " << packets[next_packet_num].packet_num << endl;
 		
 		sendto(sockfd, &packets[next_packet_num], sizeof(packets[next_packet_num]), 0,
 			(struct sockaddr*) &client_addr, len);
@@ -191,10 +191,10 @@ int main(int argc, char** argv) {
 
 			// Resend all packets in window
 			sent_times.clear();
-			cout << "Base: " << base << " Next_packet_num: " << next_packet_num << endl;
+			// cout << "Base: " << base << " Next_packet_num: " << next_packet_num << endl;
 			for (int i = base; i < next_packet_num && i < packets.size(); i++) {
 				cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Resending packet with sequence number ";
-				cout << packets[i].seq_num << " and packet number " << packets[i].packet_num << endl;
+				cout << packets[i].seq_num << endl; // << " and packet number " << packets[i].packet_num << endl;
 
 				sendto(sockfd, &packets[i], sizeof(packets[i]), 0,
 					(struct sockaddr*) &client_addr, len);
@@ -223,17 +223,20 @@ int main(int argc, char** argv) {
 		// Reliability simulation
 		// Packet Loss
 		if (isPacketBad(loss_threshold)) {
-			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "ACK with sequence number " << ack.seq_num << " and packet number " << ack.packet_num << " has been lost!" << endl << endl;
+			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "ACK " << ack.seq_num << " has been lost!" << endl << endl;
+			// cout << " and packet number " << ack.packet_num << " has been lost!" << endl << endl;
 			continue;
 		}
 
 		// Packet Corruption
 		if (isPacketBad(corrupt_threshold)) {
-			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "ACK with sequence number " << ack.seq_num << " and packet number " << ack.packet_num << " has been corrupted!" << endl << endl;
+			cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "ACK " << ack.seq_num << " has been corrupted!" << endl << endl;
+			// cout << " and packet number " << ack.packet_num << " has been corrupted!" << endl << endl;
 			continue;
 		}
 
-		cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Received ACK with sequence number " << ack.seq_num << " and packet number " << ack.packet_num << endl << endl;
+		cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Received ACK " << ack.seq_num  << endl << endl;
+		//cout << " and packet number " << ack.packet_num << endl << endl;
 
 		// All ACKS received
 		if (ack.packet_num == packets.size() - 1)
@@ -242,16 +245,17 @@ int main(int argc, char** argv) {
 		// Slide the window upon successful cum ACK
 		if (ack.packet_num >= base) {
 
-			cout << "Old base: " << base << endl;
-			cout << "Old end: " << end << endl;
+			//cout << "Old base: " << base << endl;
+			//cout << "Old end: " << end << endl;
 			base = ack.packet_num + 1;
 			end = base + (cwnd/MAX_PACKET_SIZE) - 1; 
-			cout << "New base: " << base << endl;
-			cout << "New end: " << end << endl;
+			//cout << "New base: " << base << endl;
+			//cout << "New end: " << end << endl;
 
 			for (next_packet_num; next_packet_num <= end && next_packet_num < packets.size(); next_packet_num++) {
 				cout << "TIMESTAMP: " << "EVENT: " << getCurrentTime() << "Sending packet with sequence number ";
-				cout << packets[next_packet_num].seq_num << " and packet number " << packets[next_packet_num].packet_num << endl << endl;
+				cout << packets[next_packet_num].seq_num << endl << endl;
+				// cout << " and packet number " << packets[next_packet_num].packet_num << endl << endl;
 
 				sendto(sockfd, &packets[next_packet_num], sizeof(packets[next_packet_num]), 0,
 					(struct sockaddr*) &client_addr, len);
