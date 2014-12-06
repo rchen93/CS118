@@ -166,7 +166,7 @@ int main(int argc, char** argv) {
 
 	// Write packet contents to file
 	ofstream output;
-	string output_filename = "received_" + filename;
+	string output_filename = "a.out";
 
 	output.open(output_filename.c_str(), ios::out | ios::binary);
 	if (!output.is_open()) {
