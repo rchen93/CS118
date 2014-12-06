@@ -166,7 +166,7 @@ int main(int argc, char** argv) {
 	int next_packet_num = 0;
 
 	// Send all initial packets
-	cout << "Original end: " << end << endl; 
+	// cout << "Original end: " << end << endl; 
 	cout << "TIMESTAMP: " << getCurrentTime() << "EVENT: " << "Sending initial packets up to window" << endl;
 
 	for (next_packet_num; next_packet_num <= end && next_packet_num < packets.size(); next_packet_num++) {

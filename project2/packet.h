@@ -3,7 +3,7 @@
 
 const int MAX_PACKET_SIZE = 1000;
 const int HEADER_SIZE = 8;
-const int PACKET_TIMEOUT = 500; // 500 ms = 0.5s
+const int PACKET_TIMEOUT = 100; // 100 ms = 0.1s
 const int DEFAULT = 10;
 
 struct Packet {

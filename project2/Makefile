@@ -9,4 +9,4 @@ receiverclean :
 senderclean :
 	rm sender
 receivedclean :
-	rm received_*
+	rm *.out
