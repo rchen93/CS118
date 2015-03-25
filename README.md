@@ -1,7 +1,7 @@
-CS118
+CS118: Computer Network Fundamentals
 =====
 
-Computer Network Fundamentals
+This is a repository for the projects assigned in Professor Lu's Fall 2014 class.
 
 ### Project 1: Concurrent Web Sockets using BSD Sockets
 -------------------------------------------------------
